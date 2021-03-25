@@ -1,23 +1,67 @@
-import React from 'react';
+import { Element, Stack, Text } from '@codesandbox/components';
+import css from '@styled-system/css';
+import React, { FunctionComponent } from 'react';
 
-import { Highlight, Container } from './elements';
+import { useAppState } from 'app/overmind';
 
-interface Props {
-  brand: string;
-  last4: string;
-  name: string;
-}
+import {
+  AmexIcon,
+  BlankIcon,
+  DiscoverIcon,
+  MasterCardIcon,
+  VisaIcon,
+} from './Icons';
 
-export function Card({ brand, last4, name }: Props) {
+const Icon: FunctionComponent<{ brand?: string }> = ({ brand }) => {
+  const iconsByBrand = {
+    'American Express': AmexIcon,
+    Discover: DiscoverIcon,
+    MasterCard: MasterCardIcon,
+    Visa: VisaIcon,
+  };
+  const IconByBrand = iconsByBrand[brand] || BlankIcon;
+
+  return <IconByBrand />;
+};
+
+export const Card: FunctionComponent = () => {
+  const { paymentDetails } = useAppState().preferences;
+  const { brand, last4, name } = paymentDetails || {};
+
   return (
-    <Container>
-      <div>
-        <Highlight>{brand}</Highlight> ending in ****
-        <Highlight>{last4}</Highlight>
-      </div>
-      <div>
-        <Highlight>{name}</Highlight>
-      </div>
-    </Container>
+    <Stack align="flex-start" paddingY={4}>
+      <Element
+        css={css({
+          svg: {
+            height: 16,
+            width: 'auto',
+          },
+        })}
+        marginTop={1}
+        paddingRight={2}
+      >
+        <Icon brand={brand} />
+      </Element>
+
+      <Element>
+        <Element>
+          <Text size={3} weight="bold">
+            {brand}
+          </Text>
+
+          <Text variant="muted"> ending in </Text>
+
+          <Text size={3} weight="bold">
+            {last4}
+          </Text>
+        </Element>
+
+        <Element>
+          <Text size={3} weight="bold">
+            {name}
+          </Text>
+        </Element>
+      </Element>
+    </Stack>
   );
-}
+};

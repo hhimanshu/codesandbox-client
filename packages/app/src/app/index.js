@@ -1,3 +1,4 @@
+import 'react-hot-loader/patch';
 import '@codesandbox/common/lib/global.css';
 import 'normalize.css';
 
@@ -42,7 +43,12 @@ const debug = _debug('cs:app');
  */
 const warn = console.warn;
 console.warn = (...args) => {
-  if (args[0].includes('Cannot update plugins')) {
+  if (
+    args &&
+    args[0] &&
+    typeof args[0].includes === 'function' &&
+    args[0].includes('Cannot update plugins')
+  ) {
     return;
   }
 
@@ -82,6 +88,9 @@ if (process.env.NODE_ENV === 'production') {
     'track',
     'editor.previewActionReceived',
     'live.onSelectionChanged',
+    'live.onViewRangeChanged',
+    'editor.onSelectionChanged',
+    'editor.persistCursorToUrl',
   ];
 
   try {
@@ -128,13 +137,14 @@ window.getState = path =>
 window.getSignal = path =>
   path.split('.').reduce((aggr, key) => aggr[key], overmind.actions);
 
+const rootEl = document.getElementById('root');
+
 overmind.initialized.then(() => {
   requirePolyfills().then(() => {
     if (isSafari) {
+      // eslint-disable-next-line
       import('subworkers');
     }
-
-    const rootEl = document.getElementById('root');
 
     const showNotification = (message, type) => {
       notificationState.addNotification({
@@ -185,3 +195,39 @@ overmind.initialized.then(() => {
     }
   });
 });
+
+if (module.hot) {
+  module.hot.accept(['./pages/index.tsx', './overmind'], () => {
+    const newOvermind = createOvermind(config, {
+      delimiter: ' ',
+      devtools:
+        (window.opener && window.opener !== window) ||
+        !window.chrome ||
+        location.search.includes('noDevtools')
+          ? false
+          : 'localhost:3031',
+      name:
+        'CodeSandbox - ' +
+        (navigator.userAgent.indexOf('Chrome/76') > 0 ? 'Chrome' : 'Canary'),
+      logProxies: true,
+    });
+    render(
+      <ApolloProvider client={client}>
+        <ActualOvermindProvider value={newOvermind}>
+          <OvermindProvider value={newOvermind}>
+            <HooksProvider client={client}>
+              <ThemeProvider theme={theme}>
+                <DndProvider backend={HTML5Backend}>
+                  <Router history={history}>
+                    <App />
+                  </Router>
+                </DndProvider>
+              </ThemeProvider>
+            </HooksProvider>
+          </OvermindProvider>
+        </ActualOvermindProvider>
+      </ApolloProvider>,
+      rootEl
+    );
+  });
+}

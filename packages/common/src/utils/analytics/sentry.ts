@@ -10,11 +10,16 @@ function getSentry(): Promise<typeof import('@sentry/browser')> {
 }
 
 let latestVersionPromise: Promise<string>;
+const versionTimeout = 1 * 60 * 1000;
 function getLatestVersion() {
   if (!latestVersionPromise) {
     latestVersionPromise = fetch('/version.txt')
       .then(x => x.text())
       .catch(x => '');
+
+    setTimeout(() => {
+      latestVersionPromise = undefined;
+    }, versionTimeout);
   }
 
   return latestVersionPromise;
@@ -38,10 +43,6 @@ export async function initialize(dsn: string) {
         'TypeScript Server Error', // Called from the TSC server
         /^Canceled$/, // Used by VSCode to stop currently running actions
 
-        // Chrome extensions
-        /extensions\//i,
-        /^chrome:\/\//i,
-
         // react devtools Outside of our scope for now, but we definitely want to check this out.
         // TODO: check what's happening here: https://sentry.io/organizations/codesandbox/issues/1239466583/?project=155188&query=is%3Aunresolved+release%3APROD-1573653062-4134efc0a
         /because a node with that id is already in the Store/,
@@ -53,17 +54,20 @@ export async function initialize(dsn: string) {
 
         "undefined is not an object (evaluating 'window.__pad.performLoop')", // Only happens on Safari, but spams our servers. Doesn't break anything
       ],
-      whitelistUrls: [/https?:\/\/((uploads|www)\.)?codesandbox\.io/],
+      integrations: [
+        new _Sentry.Integrations.TryCatch({
+          setTimeout: false,
+          setInterval: false,
+          requestAnimationFrame: false,
+        }),
+      ],
+      allowUrls: [/https?:\/\/((uploads|www)\.)?codesandbox\.io/],
       maxBreadcrumbs: 100,
       /**
        * Don't send messages from the sandbox, so don't send from eg.
        * new.codesandbox.io or new.csb.app
        */
-      blacklistUrls: [
-        'codesandbox.editor.main.js',
-        /.*\.codesandbox\.io/,
-        /.*\.csb\.app/,
-      ],
+      denyUrls: ['codesandbox.editor.main.js', /.*\.csb\.app/],
       beforeSend: (event, hint) => {
         const exception = event?.exception?.values?.[0];
         const exceptionFrame = exception?.stacktrace?.frames?.[0];
@@ -134,10 +138,11 @@ export const logBreadcrumb = (breadcrumb: Breadcrumb) => {
   }
 };
 
-export const captureException = err => {
+export const captureException = (err: Error) => {
   if (_Sentry) {
-    _Sentry.captureException(err);
+    return _Sentry.captureException(err);
   }
+  return null;
 };
 
 export const configureScope = cb => {

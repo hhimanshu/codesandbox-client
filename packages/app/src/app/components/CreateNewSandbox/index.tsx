@@ -8,7 +8,7 @@ import React, {
   KeyboardEvent,
 } from 'react';
 
-import { useOvermind } from 'app/overmind';
+import { useActions } from 'app/overmind';
 import history from 'app/utils/history';
 
 import { ButtonsContainer, Container } from './elements';
@@ -24,11 +24,9 @@ export const CreateNewSandboxButton: FunctionComponent<Props> = ({
   style,
 }) => {
   const {
-    actions: {
-      dashboard: { createSandboxClicked },
-      modalOpened,
-    },
-  } = useOvermind();
+    dashboard: { createSandboxClicked },
+    openCreateSandboxModal,
+  } = useActions();
 
   const createSandbox = ({ shortid }: Pick<Template, 'shortid'>) => {
     if (collectionId) {
@@ -41,7 +39,7 @@ export const CreateNewSandboxButton: FunctionComponent<Props> = ({
   };
 
   const handleClick = () => {
-    modalOpened({ modal: 'newSandbox' });
+    openCreateSandboxModal({ collectionId });
   };
 
   return (

@@ -25,7 +25,8 @@ import {
   JavaScriptIcon,
   VuePressIcon,
   UnibitIcon,
-} from '@codesandbox/template-icons';
+  DocusaurusIcon,
+} from 'template-icons';
 
 import {
   adonis,
@@ -55,6 +56,7 @@ import {
   mdxDeck,
   quasar,
   unibit,
+  docusaurus,
   TemplateType,
 } from '.';
 
@@ -108,6 +110,8 @@ export default function getIcon(theme: TemplateType) {
       return GridsomeIcon;
     case vuepress.name:
       return VuePressIcon;
+    case docusaurus.name:
+      return DocusaurusIcon;
     case mdxDeck.name:
       return MDXDeckIcon;
     case quasar.name:

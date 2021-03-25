@@ -1,23 +1,22 @@
+import { Text } from '@codesandbox/components';
 import React, { FunctionComponent } from 'react';
-
-import { Title } from '../elements';
 
 import { Question } from './elements';
 import { Prettier } from './Prettier';
 
 export const CodeFormatting: FunctionComponent = () => (
-  <div>
-    <Title>
+  <>
+    <Text block marginBottom={4} size={4} variant="muted" weight="bold">
       Prettier Settings{' '}
       <a
         href="https://prettier.io/docs/en/options.html"
-        target="_blank"
         rel="noopener noreferrer"
+        target="_blank"
       >
         <Question />
       </a>
-    </Title>
+    </Text>
 
     <Prettier />
-  </div>
+  </>
 );

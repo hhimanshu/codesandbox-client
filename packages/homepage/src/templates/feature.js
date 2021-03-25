@@ -24,13 +24,14 @@ export default ({
       frontmatter: {
         columns,
         bgColor,
+        bgImage,
         SEOText,
         description,
         coverImage,
         tweetText,
         tweetJob,
         tweetName,
-        tweetHandle,
+        photo,
         coverReversed,
         coverSmaller,
         ctaLink,
@@ -62,10 +63,7 @@ export default ({
       <Tweet reverse={coverReversed}>
         "{tweetText}"
         <User>
-          <Avatar
-            src={`https://avatars.io/twitter/${tweetHandle}`}
-            alt={tweetName}
-          />
+          <Avatar src={photo} alt={tweetName} />
           <div>
             <p>{tweetName}</p>
             <p>{tweetJob}</p>
@@ -105,6 +103,7 @@ export default ({
         <Banner
           coverSmaller={coverSmaller}
           color={bgColor}
+          bgImage={bgImage.publicURL}
           reverse={coverReversed}
         >
           {coverReversed ? (
@@ -135,6 +134,9 @@ export const pageQuery = graphql`
       frontmatter {
         columns
         bgColor
+        bgImage {
+          publicURL
+        }
         SEOText
         description
         tweetText
@@ -143,6 +145,7 @@ export const pageQuery = graphql`
         ctaLink
         tweetName
         tweetHandle
+        photo
         coverReversed
         coverSmaller
         coverImage {

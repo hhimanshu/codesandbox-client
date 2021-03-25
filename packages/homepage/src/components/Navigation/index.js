@@ -1,21 +1,23 @@
+/* eslint-disable import/no-cycle */
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, Location } from '@reach/router';
+import { signInPageUrl } from '@codesandbox/common/lib/utils/url-generator';
 import { useTheme } from '../layout';
 import Button from '../Button';
 import Logo from '../../assets/images/logo.svg';
 import SupportIcon from '../../assets/icons/Support';
 import StatusIcon from '../../assets/icons/Status';
-// import LearnIcon from '../../assets/icons/Learn';
 import DocsIcon from '../../assets/icons/Docs';
 import BlogIcon from '../../assets/icons/Blog';
 import IDEIcon from '../../assets/icons/Ide';
-import EmbedIcon from '../../assets/icons/Embed';
-import CIIcon from '../../assets/icons/Ci';
+import FeedbackIcon from '../../assets/icons/Feedback';
+import PrototypeIcon from '../../assets/icons/Prototype';
 import TeamsIcon from '../../assets/icons/Teams';
 import SearchIcon from '../../assets/icons/Search';
 import HighlightedICon from '../../assets/icons/Highlighted';
-// import NewIcon from '../../assets/icons/New';
+import NewIcon from '../../assets/icons/New';
+import { useLogin } from '../../hooks/useLogin';
 import {
   Header,
   Nav,
@@ -30,8 +32,8 @@ import SubNav from './SubNav';
 import MobileNav from './MobileNav';
 
 const Navigation = () => {
-  const [user, setUser] = useState(null);
-  const [openedNav, setOpenedNav] = useState();
+  const user = useLogin();
+  const [openedNav, setOpenedNav] = useState('');
   const [hasOpened, setHasOpened] = useState(false);
   const muted = useTheme().homepage.muted;
 
@@ -54,25 +56,6 @@ const Navigation = () => {
     </svg>
   );
 
-  const fetchCurrentUser = async () => {
-    const jwt = JSON.parse(localStorage.getItem('jwt'));
-
-    const BASE =
-      process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : '';
-
-    const { data } = await fetch(BASE + '/api/v1/users/current', {
-      headers: { Authorization: `Bearer ${jwt}` },
-    }).then(x => x.json());
-
-    setUser(data);
-  };
-
-  useEffect(() => {
-    if (localStorage.getItem('jwt')) {
-      fetchCurrentUser();
-    }
-  }, []);
-
   useEffect(() => {
     if (openedNav) {
       setHasOpened(true);
@@ -84,7 +67,11 @@ const Navigation = () => {
   return (
     <Location>
       {({ location: { pathname } }) => (
-        <div onMouseLeave={() => setOpenedNav(null)}>
+        <div
+          onMouseLeave={() => {
+            setOpenedNav(null);
+          }}
+        >
           <motion.div
             initial={{
               opacity: pathname === '/' ? 0 : 1,
@@ -106,10 +93,10 @@ const Navigation = () => {
                   <List>
                     <li>
                       <button
-                        onMouseEnter={() => setOpenedNav('features')}
+                        onMouseEnter={() => setOpenedNav('product')}
                         type="button"
                       >
-                        Features
+                        Product
                         <DownButton />
                       </button>
                     </li>
@@ -155,14 +142,20 @@ const Navigation = () => {
                       <li className="tablet-remove">
                         <a
                           onMouseEnter={() => setOpenedNav(null)}
-                          href="https://codesandbox.io/signin"
+                          href={signInPageUrl()}
                         >
                           Sign In
                         </a>
                       </li>
                     )}
                     <LogIn onMouseEnter={() => setOpenedNav(null)}>
-                      <Button className="button" href="/s">
+                      <Button
+                        css={`
+                          background: #5962df;
+                        `}
+                        className="button"
+                        href="/s"
+                      >
                         Create Sandbox
                       </Button>
                       {user && (
@@ -192,7 +185,6 @@ const Navigation = () => {
                   width: 100%;
                   background: #151515;
                   overflow: hidden;
-                  border-bottom: 1px solid ${props => props.theme.homepage.grey};
                   z-index: 99;
                   box-shadow: 0, 8px, 1rem rgba(0, 0, 0, 0.12), 0, 4px,
                     2px rgba(0, 0, 0, 0.24);
@@ -211,7 +203,7 @@ const Navigation = () => {
                   components={[
                     {
                       Icon: () => (
-                        <Link to="/docs" title="Documentation">
+                        <Link to="/docs/start" title="Documentation">
                           <DocsIcon />
                         </Link>
                       ),
@@ -272,7 +264,7 @@ const Navigation = () => {
                 <SubNav
                   openedNav={openedNav}
                   hasOpened={hasOpened}
-                  name="features"
+                  name="product"
                   components={[
                     {
                       Icon: () => (
@@ -280,40 +272,42 @@ const Navigation = () => {
                           <IDEIcon />
                         </Link>
                       ),
-                      Label: () => <Link to="/ide">IDE</Link>,
+                      Label: () => <Link to="/ide">Coding</Link>,
                     },
                     {
                       Icon: () => (
-                        <Link to="/embeds">
-                          <EmbedIcon />
+                        <Link to="/prototyping">
+                          <PrototypeIcon />
                         </Link>
                       ),
-                      Label: () => <Link to="/embeds">Embed</Link>,
+                      Label: () => <Link to="/prototyping">Prototyping</Link>,
                     },
                     {
                       Icon: () => (
-                        <Link to="/ci">
-                          <CIIcon />
-                        </Link>
-                      ),
-                      Label: () => <Link to="/ci">CI</Link>,
-                    },
-                    {
-                      Icon: () => (
-                        <Link to="/team">
+                        <Link to="/knowledge-sharing/">
                           <TeamsIcon />
                         </Link>
                       ),
-                      Label: () => <Link to="/team">Teams</Link>,
+                      Label: () => (
+                        <Link to="/knowledge-sharing/">Knowledge Sharing</Link>
+                      ),
                     },
-                    // {
-                    //   Icon: () => (
-                    //     <a>
-                    //       <NewIcon />
-                    //     </a>
-                    //   ),
-                    //   Label: () => <a>What’s New</a>,
-                    // },
+                    {
+                      Icon: () => (
+                        <Link to="/feedback">
+                          <FeedbackIcon />
+                        </Link>
+                      ),
+                      Label: () => <Link to="/feedback">Feedback</Link>,
+                    },
+                    {
+                      Icon: () => (
+                        <Link to="/changelog">
+                          <NewIcon />
+                        </Link>
+                      ),
+                      Label: () => <Link to="/changelog">What's New</Link>,
+                    },
                   ]}
                 />
                 <SubNav

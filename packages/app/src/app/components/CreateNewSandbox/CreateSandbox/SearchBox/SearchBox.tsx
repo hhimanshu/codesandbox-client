@@ -1,5 +1,5 @@
 import React from 'react';
-import { useKey } from 'react-use';
+import useKey from 'react-use/lib/useKey';
 import { ESC } from '@codesandbox/common/lib/utils/keycodes';
 import { SearchElement, InputWrapper } from './elements';
 
@@ -42,6 +42,7 @@ export const SearchBox = ({
     >
       <InputWrapper>
         <SearchElement
+          id="filter-templates"
           placeholder={placeholder}
           ref={inputEl}
           value={value}

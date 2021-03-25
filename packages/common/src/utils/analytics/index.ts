@@ -39,6 +39,15 @@ export async function identify(key: string, value: any) {
   }
 }
 
+/**
+ * An identify that only sets the value if it hasn't been set before
+ */
+export async function identifyOnce(key: string, value: any) {
+  if (!DO_NOT_TRACK_ENABLED) {
+    amplitude.identifyOnce(key, value);
+  }
+}
+
 export async function setAnonymousId() {
   if (!DO_NOT_TRACK_ENABLED && typeof localStorage !== 'undefined') {
     let anonymousUid = localStorage.getItem(ANONYMOUS_UID_KEY);
@@ -57,13 +66,13 @@ export async function setAnonymousId() {
   }
 }
 
-export async function setUserId(userId: string) {
+export async function setUserId(userId: string, email: string) {
   if (!DO_NOT_TRACK_ENABLED) {
     const hashedId = getHashedUserId(userId);
 
     amplitude.setUserId(hashedId);
     sentry.setUserId(hashedId);
-    vero.setUserId(hashedId);
+    vero.setUserId(hashedId, email);
   }
 }
 
@@ -84,6 +93,15 @@ export function trackPageview() {
     amplitude.track('pageview', data);
     vero.trackPageview();
     google.trackPageView();
+  }
+}
+
+/**
+ * Assign the user to a group. Can be multiple under one key.
+ */
+export function setGroup(name: string, value: string | string[]) {
+  if (!DO_NOT_TRACK_ENABLED) {
+    amplitude.setGroup(name, value);
   }
 }
 

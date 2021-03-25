@@ -1,52 +1,44 @@
-import { ENTER } from '@codesandbox/common/lib/utils/keycodes';
-import { Element, FormField, Textarea } from '@codesandbox/components';
+import { UserQuery } from '@codesandbox/common/lib/types';
+import { Element } from '@codesandbox/components';
 import { css } from '@styled-system/css';
-import { useOvermind } from 'app/overmind';
-import React, { useState } from 'react';
+import React from 'react';
 
-export const AddComment: React.FC = () => {
-  const [value, setValue] = useState('');
-  const { actions } = useOvermind();
+import { useCodesandboxCommentEditor } from './hooks/useCodesandboxCommentEditor';
 
-  const onSubmit = e => {
-    e.preventDefault();
-    if (value) {
-      actions.comments.addComment({
-        content: value,
-      });
-      setValue('');
+type Props = {
+  onSubmit: (
+    value: string,
+    mentions: { [username: string]: UserQuery },
+    images: {
+      [fileName: string]: { src: string; resolution: [number, number] };
     }
-  };
+  ) => void;
+};
 
-  // Form elements submit on Enter, except Textarea :)
-  const submitOnEnter = event => {
-    if (event.keyCode === ENTER && !event.shiftKey) onSubmit(event);
-  };
-
+export const AddComment: React.FC<Props> = ({ onSubmit }) => {
+  const [elements] = useCodesandboxCommentEditor({
+    initialValue: '',
+    initialMentions: {},
+    initialImages: {},
+    onSubmit,
+    fixed: true,
+    props: {
+      autosize: true,
+      style: { lineHeight: 1.2, minHeight: 32 },
+    },
+  });
   return (
     <Element
       paddingX={2}
       paddingY={4}
       css={css({
+        zIndex: 2,
         borderTop: '1px solid',
         borderColor: 'sideBar.border',
-        // super custom shadow, TODO: check if this works in other themes
-        boxShadow:
-          '0px -4px 8px rgba(21, 21, 21, 0.4), 0px -8px 8px rgba(21, 21, 21, 0.4)',
+        boxShadow: theme => `0px -32px 32px ${theme.colors.dialog.background}`,
       })}
     >
-      <form onSubmit={onSubmit}>
-        <FormField label="Add a comment" hideLabel>
-          <Textarea
-            autosize
-            value={value}
-            onChange={e => setValue(e.target.value)}
-            onKeyDown={submitOnEnter}
-            placeholder="Write a comment"
-            css={css({ minHeight: 8 })}
-          />
-        </FormField>
-      </form>
+      <form css={{ position: 'relative' }}>{elements}</form>
     </Element>
   );
 };

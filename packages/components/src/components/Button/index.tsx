@@ -1,7 +1,9 @@
-import styled from 'styled-components';
-import css from '@styled-system/css';
+import React from 'react';
 import deepmerge from 'deepmerge';
-import { Element } from '../Element';
+import styled, { keyframes } from 'styled-components';
+import { Link } from 'react-router-dom';
+import VisuallyHidden from '@reach/visually-hidden';
+import { Element, IElementProps } from '../Element';
 
 const variantStyles = {
   primary: {
@@ -57,57 +59,105 @@ const variantStyles = {
   },
 };
 
+const commonStyles = {
+  display: 'inline-flex',
+  justifyContent: 'center',
+  alignItems: 'center',
+  flex: 'none', // as a flex child
+  cursor: 'pointer',
+  fontFamily: 'Inter, sans-serif',
+  paddingY: 0,
+  width: '100%',
+  paddingX: 2,
+  height: '26px', // match with inputs
+  fontSize: 2,
+  fontWeight: 'medium',
+  lineHeight: 1, // trust the height
+  border: 'none',
+  borderRadius: 'small',
+  transition: 'all ease-in',
+  textDecoration: 'none',
+  transitionDuration: theme => theme.speeds[2],
+
+  ':focus': {
+    outline: 'none',
+  },
+  ':active:not(:disabled)': {
+    transform: 'scale(0.98)',
+  },
+  ':disabled': {
+    opacity: '0.4',
+    cursor: 'not-allowed',
+  },
+  '&[data-loading="true"]': {
+    opacity: 1,
+    cursor: 'default',
+  },
+  '&[data-auto-width="true"]': {
+    width: 'fit-content',
+  },
+};
+
 export interface ButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+    IElementProps {
   variant?: 'primary' | 'secondary' | 'link' | 'danger';
+  loading?: boolean;
+  href?: string;
+  to?: string;
+  as?: any;
+  target?: any;
+  autoWidth?: boolean;
 }
 
-export const Button = styled(Element).attrs({ as: 'button' })<ButtonProps>(
-  ({ variant = 'primary', ...props }) =>
-    css(
-      deepmerge(
-        // @ts-ignore deepmerge allows functions as values
-        // it overrides instead of merging, which is what we want
-        // but it's types don't like it. so we're going to ignore that
-        // TODO: raise a pull request for deepmerge or pick a different
-        // library to deep merge objects
-        variantStyles[variant],
-        // static styles:
-        {
-          display: 'inline-flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          flex: 'none', // as a flex child
-          cursor: 'pointer',
-          fontFamily: 'Inter, sans-serif',
-          paddingY: 0,
-          paddingX: 2,
-          height: '26px', // match with inputs
-          width: '100%',
-          fontSize: 2,
-          fontWeight: 'medium',
-          lineHeight: 1, // trust the height
-          border: 'none',
-          borderRadius: 'small',
-          transition: 'all ease-in',
-          transitionDuration: theme => theme.speeds[2],
+export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  function Button(
+    { variant = 'primary', loading, css = {}, autoWidth, as: pAs, ...props },
+    ref
+  ) {
+    const styles = deepmerge.all([variantStyles[variant], commonStyles, css]);
+    const usedAs = pAs || (props.to ? Link : 'button');
+    // default type is button unless props.as was changed
+    const type = usedAs === 'button' && 'button';
 
-          ':focus': {
-            outline: 'none',
-          },
-          ':active:not(:disabled)': {
-            transform: 'scale(0.98)',
-          },
-          ':disabled': {
-            opacity: '0.4',
-            cursor: 'not-allowed',
-          },
-          ...props.css,
-        }
-      )
-    )
+    return (
+      <Element
+        as={usedAs}
+        type={type}
+        css={styles}
+        ref={ref}
+        disabled={props.disabled || loading}
+        data-loading={loading}
+        data-auto-width={autoWidth}
+        {...props}
+      >
+        {loading ? <AnimatingDots /> : props.children}
+      </Element>
+    );
+  }
 );
 
-Button.defaultProps = {
-  type: 'button',
-};
+/** Animation dots, we use the styled.span syntax
+ *  because keyframes aren't supported in the object syntax
+ */
+const transition = keyframes({
+  '0%': { opacity: 0.6 },
+  '50%': { opacity: 1 },
+  '100%': { opacity: 0.6 },
+});
+
+const Dot = styled.span`
+  font-size: 18px;
+  animation: ${transition} 1.5s ease-out infinite;
+`;
+
+const AnimatingDots = () => (
+  <>
+    <VisuallyHidden>Loading</VisuallyHidden>
+    <span role="presentation">
+      <Dot>·</Dot>
+      <Dot style={{ animationDelay: '200ms' }}>·</Dot>
+      <Dot style={{ animationDelay: '400ms' }}>·</Dot>
+    </span>
+  </>
+);

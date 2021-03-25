@@ -6,7 +6,7 @@ import Tooltip, {
   SingletonTooltip,
 } from '@codesandbox/common/lib/components/Tooltip';
 import { TippyProps } from '@tippy.js/react';
-import { useOvermind } from 'app/overmind';
+import { useAppState, useActions } from 'app/overmind';
 import { Stack, Avatar, Text, Menu, Link } from '@codesandbox/components';
 import { LiveUser } from '@codesandbox/common/lib/types';
 
@@ -104,8 +104,10 @@ const CollaboratorHead = (props: ICollaboratorHeadProps) => (
 );
 
 export const CollaboratorHeads: FunctionComponent = () => {
-  const { state, actions } = useOvermind();
-  const liveUsers = state.live.roomInfo.users;
+  const state = useAppState();
+  const actions = useActions();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const liveUsers = state.live.roomInfo?.users || [];
 
   const liveUserId = state.live.liveUserId;
   const followingUserId = state.live.followingUserId;
@@ -144,6 +146,12 @@ export const CollaboratorHeads: FunctionComponent = () => {
 
   const firstLiveUsers = orderedLiveUsers.slice(0, USER_OVERFLOW_LIMIT);
   const restLiveUsers = orderedLiveUsers.slice(USER_OVERFLOW_LIMIT);
+
+  // It doesn't make sense to show a "More" button for live users if there's
+  // only one in it.
+  if (restLiveUsers.length === 1) {
+    firstLiveUsers.push(restLiveUsers.pop());
+  }
 
   return (
     <Stack justify="center">

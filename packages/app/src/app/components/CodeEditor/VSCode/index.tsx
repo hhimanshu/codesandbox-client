@@ -4,7 +4,7 @@ import './workbench-theme.css';
 import getTemplate from '@codesandbox/common/lib/templates';
 import getUI from '@codesandbox/common/lib/templates/configuration/ui';
 import theme from '@codesandbox/common/lib/theme';
-import { useOvermind } from 'app/overmind';
+import { useActions, useAppState, useEffects } from 'app/overmind';
 import { json } from 'overmind';
 import React, { useEffect, useRef } from 'react';
 import { render } from 'react-dom';
@@ -14,13 +14,24 @@ import { Configuration } from './Configuration';
 import { Container, GlobalStyles } from './elements';
 
 export const VSCode: React.FunctionComponent = () => {
-  const { state, actions, effects } = useOvermind();
+  const state = useAppState();
+  const actions = useActions();
+  const effects = useEffects();
   const containerEl = useRef(null);
 
+  const getCurrentModule = React.useCallback(
+    () => state.editor.currentModule,
+    [] // eslint-disable-line
+  );
+  const currentSandboxTemplate = state.editor.currentSandbox?.template;
   useEffect(() => {
     const rootEl = containerEl.current;
     const mainContainer = effects.vscode.getEditorElement(
       (modulePath: string) => {
+        if (!state.editor.currentSandbox) {
+          return false;
+        }
+
         const template = getTemplate(state.editor.currentSandbox.template);
         const config = template.configurationFiles[modulePath];
 
@@ -36,7 +47,7 @@ export const VSCode: React.FunctionComponent = () => {
                     actions.editor.codeChanged({ code, moduleShortid })
                   }
                   // Copy the object, we don't want mutations in the component
-                  currentModule={json(state.editor.currentModule)}
+                  currentModule={json(getCurrentModule())}
                   config={config}
                   sandbox={state.editor.currentSandbox}
                   {...(extraProps as any)}
@@ -60,9 +71,9 @@ export const VSCode: React.FunctionComponent = () => {
   }, [
     actions.editor,
     effects.vscode,
-    state.editor.currentModule,
     state.editor.currentSandbox,
-    state.editor.currentSandbox.template,
+    currentSandboxTemplate,
+    getCurrentModule,
   ]);
 
   return (

@@ -1,4 +1,4 @@
-import styled from 'styled-components';
+import styled, { css } from 'styled-components';
 import { Link } from '@reach/router';
 
 export const Header = styled.header`
@@ -118,6 +118,25 @@ export const LogoImage = styled.img`
   margin-right: 1rem;
 `;
 
+const buttonCSS = css`
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  color: ${props => props.theme.homepage.muted};
+  transition: all 200ms ease;
+  outline: none;
+  padding: 0;
+
+  &:hover {
+    color: ${props => props.theme.homepage.white};
+
+    svg path {
+      fill: ${props => props.theme.homepage.white};
+    }
+  }
+`;
+
 export const List = styled.ul`
   list-style: none;
   margin: 0;
@@ -132,30 +151,22 @@ export const List = styled.ul`
       margin-right: 3rem;
 
       @media screen and (max-width: 900px) {
-        margin-right: 1.5rem;
+        margin-right: 1rem;
       }
     }
   }
 
   a:not(.button),
   button {
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    text-decoration: none;
-    color: ${props => props.theme.homepage.muted};
-    transition: all 200ms ease;
-    outline: none;
-    padding: 0;
-
-    &:hover {
-      color: ${props => props.theme.homepage.white};
-
-      svg path {
-        fill: ${props => props.theme.homepage.white};
-      }
-    }
+    ${buttonCSS}
   }
+`;
+
+export const LinkButton = styled.button`
+  ${buttonCSS}
+  color: white;
+  margin-right: 8px;
+  margin-right: 1rem;
 `;
 
 export const LogIn = styled.li`
@@ -239,10 +250,6 @@ export const Items = styled.ul`
     text-decoration: none;
   }
 
-  section {
-    width: 43px;
-  }
-
   span {
     font-style: normal;
     font-weight: 500;
@@ -270,4 +277,10 @@ export const Pricing = styled.li`
   section {
     width: 43px;
   }
+`;
+
+export const IconWrapper = styled.div`
+  display: flex;
+  justify-content: center;
+  width: 43px;
 `;

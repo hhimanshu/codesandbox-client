@@ -1,5 +1,4 @@
-import { CommentsFilterOption } from '@codesandbox/common/lib/types';
-
+import { CommentsFilterOption, UserQuery } from '@codesandbox/common/lib/types';
 import {
   Icon,
   List,
@@ -9,27 +8,20 @@ import {
   Text,
 } from '@codesandbox/components';
 import { css } from '@styled-system/css';
-import { useOvermind } from 'app/overmind';
+import { useAppState, useActions } from 'app/overmind';
 import React from 'react';
 
 import { AddComment } from './AddComment';
 import { Comment } from './Comment';
-import { CommentDialog } from './Dialog';
-import { MultiComment } from './components/MultiComment';
 
 export const Comments: React.FC = () => {
   const {
-    state: {
-      comments: {
-        selectedCommentsFilter,
-        currentComments,
-        currentCommentId,
-        multiCommentsSelector,
-        currentCommentsByDate,
-      },
-    },
-    actions: { comments: commentsActions },
-  } = useOvermind();
+    selectedCommentsFilter,
+    currentComments,
+    currentCommentsByDate,
+  } = useAppState().comments;
+  const { comments: commentsActions } = useActions();
+  const scrollRef = React.useRef(null);
   const options = Object.values(CommentsFilterOption);
 
   const getSelectedFilter = () => {
@@ -42,6 +34,39 @@ export const Comments: React.FC = () => {
         return 'new';
     }
   };
+
+  const getFilterName = () => {
+    switch (selectedCommentsFilter) {
+      case CommentsFilterOption.ALL:
+        return 'All';
+      case CommentsFilterOption.RESOLVED:
+        return 'Resolved';
+      case CommentsFilterOption.OPEN:
+        return 'Open';
+      default:
+        return 'new';
+    }
+  };
+
+  const onSubmit = (
+    value: string,
+    mentions: { [username: string]: UserQuery },
+    images: {
+      [fileName: string]: { src: string; resolution: [number, number] };
+    }
+  ) => {
+    commentsActions.saveNewComment({
+      content: value,
+      mentions,
+      images,
+    });
+    scrollRef.current.scrollTop = 0;
+  };
+
+  const iconColor =
+    selectedCommentsFilter !== CommentsFilterOption.ALL
+      ? 'button.background'
+      : 'inherit';
 
   const Empty = () => (
     <Stack
@@ -84,13 +109,29 @@ export const Comments: React.FC = () => {
             minHeight: '35px',
           })}
         >
-          <Text>Comments</Text>
+          <Text>
+            Comments
+            <Text css={{ textTransform: 'capitalize' }}>
+              {' '}
+              ({getFilterName()})
+            </Text>
+          </Text>
           <Menu>
             <Menu.IconButton
               className="icon-button"
               name="filter"
               title="Filter comments"
               size={12}
+              css={css({
+                color: iconColor,
+                ':hover:not(:disabled)': {
+                  color: iconColor,
+                },
+                ':focus:not(:disabled)': {
+                  color: iconColor,
+                  backgroundColor: 'transparent',
+                },
+              })}
             />
             <Menu.List>
               {options.map(option => (
@@ -107,11 +148,16 @@ export const Comments: React.FC = () => {
 
         {currentComments.length ? (
           <List
+            itemProp="mainEntity"
+            itemScope
+            itemType="http://schema.org/Conversation"
+            ref={scrollRef}
             marginTop={4}
             css={{
               // stretch within container, leaving space for comment box
               height: 'calc(100% - 32px)',
               overflow: 'auto',
+              scrollBehavior: 'smooth',
             }}
           >
             {currentCommentsByDate.today.length ? (
@@ -138,9 +184,7 @@ export const Comments: React.FC = () => {
         ) : null}
       </div>
       {currentComments.length ? null : <Empty />}
-      <AddComment />
-      {currentCommentId && <CommentDialog />}
-      {multiCommentsSelector && <MultiComment {...multiCommentsSelector} />}
+      <AddComment onSubmit={onSubmit} />
     </Stack>
   );
 };

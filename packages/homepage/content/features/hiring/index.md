@@ -11,7 +11,9 @@ tweetText: CodeSandbox is truly amazing.
 tweetJob: Head of Developer Experience, Netlify
 tweetName: Sarah Drasner
 tweetHandle: sarah_edo
+photo: https://pbs.twimg.com/profile_images/1281071936605323266/wc1KRZLK_200x200.jpg
 bgColor: F69935
+bgImage: ./orange.jpg
 coverImage: ./hiring.svg
 coverReversed: true
 coverSmaller: true

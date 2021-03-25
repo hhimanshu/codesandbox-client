@@ -2,19 +2,19 @@ import styled, { css } from 'styled-components';
 
 export const Title = styled.h1`
   ${({ theme, textCenter }) => css`
+    font-weight: 900;
     font-family: ${theme.homepage.appleFont};
-    font-weight: 500;
     font-size: 2.5rem;
     line-height: 3rem;
     color: ${theme.homepage.white};
     margin: 0.5rem 0;
 
     ${textCenter &&
-      css`
-        text-align: center;
-        max-width: 50%;
-        margin: auto;
-      `}
+    css`
+      text-align: center;
+      max-width: 50%;
+      margin: auto;
+    `}
   `};
   ${props => props.theme.breakpoints.md} {
     max-width: 80%;
@@ -37,11 +37,12 @@ export const Description = styled.h2`
 `;
 
 export const Banner = styled.div`
-  ${({ color, reverse, coverSmaller }) => css`
-    background: #${color};
+  ${({ color, bgImage, reverse, coverSmaller }) => css`
+    background: #${color} url(${bgImage}) center;
+    background-size: cover;
     height: ${coverSmaller ? '380px' : '480px'};
     width: 100%;
-    border-radius: 4px;
+
     margin-bottom: 7.5rem;
     margin-top: 3.75rem;
     position: relative;
@@ -52,6 +53,9 @@ export const Banner = styled.div`
     align-items: flex-end;
     flex-grow: 0;
     flex-shrink: 1;
+
+    clip-path: inset(0px round 0.5rem);
+    -webkit-mask-image: -webkit-radial-gradient(white, black);
     overflow: hidden;
 
     ${props => props.theme.breakpoints.lg} {
@@ -70,9 +74,9 @@ export const Banner = styled.div`
       ${props => props.theme.breakpoints.lg} {
         width: 230%;
         ${reverse &&
-          css`
-            transform: translateX(-56%);
-          `};
+        css`
+          transform: translateX(-56%);
+        `};
 
         max-width: initial;
       }

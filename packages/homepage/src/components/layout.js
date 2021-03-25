@@ -3,13 +3,16 @@ import { ThemeProvider } from 'styled-components';
 
 import theme from '@codesandbox/common/lib/theme';
 import { VisuallyHidden } from './style';
+import Privacy from './Toast';
 import '../css/typography.css';
 import '../css/global.css';
-import Navigation from './Navigation/index';
+// eslint-disable-next-line import/no-cycle
+import Navigation from './Navigation';
 import Footer from './Footer';
 
 const text = number => `@media only screen and (max-width: ${number}px)`;
 
+export const TINY_BREAKPOINT = 320;
 export const SMALL_BREAKPOINT = 576;
 export const MEDIUM_BREAKPOINT = 768;
 export const LARGE_BREAKPOINT = 1024;
@@ -18,6 +21,7 @@ export const EXTRA_LARGE_BREAKPOINT = 1200;
 const homepageTheme = {
   ...theme,
   breakpoints: {
+    xs: text(TINY_BREAKPOINT),
     sm: text(SMALL_BREAKPOINT),
     md: text(MEDIUM_BREAKPOINT),
     lg: text(LARGE_BREAKPOINT),
@@ -58,13 +62,14 @@ const TemplateWrapper = ({ children, noWrapperStyling }) => (
 
       <main
         style={noWrapperStyling ? {} : WRAPPER_STYLING}
-        id="main"
         aria-label="main content"
+        css="margin-top:-1px;"
       >
         {children}
       </main>
       <Footer />
     </div>
+    <Privacy />
   </ThemeProvider>
 );
 

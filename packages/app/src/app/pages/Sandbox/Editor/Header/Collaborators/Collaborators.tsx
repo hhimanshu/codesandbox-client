@@ -2,7 +2,7 @@ import React, { FunctionComponent } from 'react';
 import { Element } from '@codesandbox/components';
 import { hasPermission } from '@codesandbox/common/lib/utils/permission';
 import { Overlay } from 'app/components/Overlay';
-import { useOvermind } from 'app/overmind';
+import { useAppState } from 'app/overmind';
 
 import { Container, HorizontalSeparator } from './elements';
 import { AddCollaboratorForm } from './AddCollaboratorForm';
@@ -11,15 +11,12 @@ import { ButtonActions } from './ButtonActions';
 import { CollaboratorList } from './CollaboratorList';
 
 const CollaboratorContent = () => {
-  const { state } = useOvermind();
+  const { currentSandbox } = useAppState().editor;
 
-  const isOwner = hasPermission(
-    state.editor.currentSandbox.authorization,
-    'owner'
-  );
+  const isOwner = hasPermission(currentSandbox.authorization, 'owner');
 
   return (
-    <Container direction="vertical">
+    <Container direction="vertical" style={{ borderRadius: 4 }}>
       <Element padding={4}>
         <LinkPermissions readOnly={!isOwner} />
         {isOwner && (
@@ -45,13 +42,7 @@ const CollaboratorContent = () => {
 export const Collaborators: FunctionComponent<{
   renderButton: (any) => JSX.Element;
 }> = ({ renderButton }) => (
-  <>
-    <Overlay
-      noHeightAnimation={false}
-      event="Collaborators"
-      content={CollaboratorContent}
-    >
-      {open => renderButton({ onClick: () => open() })}
-    </Overlay>
-  </>
+  <Overlay event="Collaborators" content={CollaboratorContent}>
+    {open => renderButton({ onClick: () => open() })}
+  </Overlay>
 );

@@ -11,7 +11,9 @@ tweetText:
 tweetJob: Senior Product Engineer, Framer
 tweetName: Matt Perry
 tweetHandle: mattgperry
+photo: https://pbs.twimg.com/profile_images/1001388766400049152/dsAMRQfa_200x200.jpg
 bgColor: 535BCF
+bgImage: ./purple.jpg
 coverImage: ./ci-hero.svg
 columns: 3
 ---

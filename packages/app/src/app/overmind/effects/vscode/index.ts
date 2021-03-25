@@ -1,7 +1,6 @@
-import './icons.css';
-
 import DEFAULT_PRETTIER_CONFIG from '@codesandbox/common/lib/prettify-default-config';
 import { resolveModule } from '@codesandbox/common/lib/sandbox/modules';
+import { IReaction, json } from 'overmind';
 import getTemplate from '@codesandbox/common/lib/templates';
 import {
   CurrentUser,
@@ -15,21 +14,22 @@ import {
   UserViewRange,
 } from '@codesandbox/common/lib/types';
 import { notificationState } from '@codesandbox/common/lib/utils/notifications';
+import { hasPermission } from '@codesandbox/common/lib/utils/permission';
 import {
   NotificationMessage,
   NotificationStatus,
 } from '@codesandbox/notifications/lib/state';
-import { Reference } from 'app/graphql/types';
-import { Reaction } from 'app/overmind';
+import { CodeReferenceMetadata } from 'app/graphql/types';
+import { Context } from 'app/overmind';
 import { indexToLineAndColumn } from 'app/overmind/utils/common';
 import prettify from 'app/src/app/utils/prettify';
 import { blocker } from 'app/utils/blocker';
 import { listen } from 'codesandbox-api';
-import FontFaceObserver from 'fontfaceobserver';
 import { debounce } from 'lodash-es';
 import * as childProcess from 'node-services/lib/child_process';
-import { COMMENTS } from '@codesandbox/common/lib/utils/feature-flags';
-import { json } from 'overmind';
+import { TextOperation } from 'ot';
+
+import FontFaceObserver from 'fontfaceobserver';
 import io from 'socket.io-client';
 
 import { EXTENSIONS_LOCATION, VIM_EXTENSION_ID } from './constants';
@@ -38,6 +38,7 @@ import {
   initializeCustomTheme,
   initializeExtensionsFolder,
   initializeSettings,
+  initializeSnippetDirectory,
   initializeThemeCache,
 } from './initializers';
 import { Linter } from './Linter';
@@ -70,7 +71,7 @@ export type VsCodeOptions = {
       right: number;
     };
   }) => void;
-  reaction: Reaction;
+  reaction: IReaction<Context>;
   // These two should be removed
   getSignal: any;
   getState: any;
@@ -143,30 +144,29 @@ export class VSCodeEffect {
       getState: options.getState,
       getSignal: options.getSignal,
     };
-    this.onSelectionChangeDebounced = debounce(options.onSelectionChanged, 500);
+    this.onSelectionChangeDebounced = debounce(options.onSelectionChanged, 200);
 
     this.prepareElements();
 
-    if (COMMENTS) {
-      this.options.reaction(
-        state => ({
-          fileComments: json(state.comments.fileComments),
-          currentCommentId: state.comments.currentCommentId,
-        }),
-        ({ fileComments, currentCommentId }) => {
-          if (this.modelsHandler) {
-            this.modelsHandler.applyComments(fileComments, currentCommentId);
-          }
+    this.options.reaction(
+      state => ({
+        fileComments: json(state.comments.fileComments),
+        currentCommentId: state.comments.currentCommentId,
+      }),
+      ({ fileComments, currentCommentId }) => {
+        if (this.modelsHandler) {
+          this.modelsHandler.applyComments(fileComments, currentCommentId);
         }
-      );
-      this.listenToCommentClick();
-    }
+      }
+    );
+    this.listenToCommentClick();
 
     // We instantly create a sandbox sync, as we want our
     // extension host to get its messages handled to initialize
     // correctly
     this.sandboxFsSync = new SandboxFsSync({
       getSandboxFs: () => ({}),
+      getCurrentSandbox: () => null,
     });
 
     import(
@@ -192,11 +192,13 @@ export class VSCodeEffect {
       initializeCustomTheme();
       initializeThemeCache();
       initializeSettings();
+      initializeSnippetDirectory();
+
       this.setVimExtensionEnabled(
         localStorage.getItem('settings.vimmode') === 'true'
       );
 
-      return new FontFaceObserver('dm').load();
+      return new FontFaceObserver('MonoLisa').load();
     });
 
     // Only set the read only state when the editor is initialized.
@@ -206,6 +208,8 @@ export class VSCodeEffect {
       // you should not be allowed to edit.
       options.reaction(
         state =>
+          (state.editor.currentSandbox &&
+            Boolean(state.editor.currentSandbox.git)) ||
           !state.live.isLive ||
           state.live.roomInfo?.mode === 'open' ||
           (state.live.roomInfo?.mode === 'classroom' &&
@@ -219,11 +223,15 @@ export class VSCodeEffect {
     return this.initialized;
   }
 
+  public isModuleOpened(module: Module) {
+    return this.modelsHandler.isModuleOpened(module);
+  }
+
   public async getCodeReferenceBoundary(
     commentId: string,
-    reference: Reference
+    reference: CodeReferenceMetadata
   ) {
-    this.revealPositionInCenterIfOutsideViewport(reference.metadata.anchor, 1);
+    this.revealPositionInCenterIfOutsideViewport(reference.anchor, 1);
 
     return new Promise<DOMRect>((resolve, reject) => {
       let checkCount = 0;
@@ -321,10 +329,7 @@ export class VSCodeEffect {
     this.modelsHandler.syncModule(module);
   }
 
-  public async applyOperation(
-    moduleShortid: string,
-    operation: (string | number)[]
-  ) {
+  public async applyOperation(moduleShortid: string, operation: TextOperation) {
     if (!this.modelsHandler) {
       return;
     }
@@ -363,7 +368,6 @@ export class VSCodeEffect {
 
   public setReadOnly(enabled: boolean) {
     this.readOnly = enabled;
-
     this.updateOptions({ readOnly: enabled });
   }
 
@@ -412,6 +416,14 @@ export class VSCodeEffect {
     } catch {
       //
     }
+    try {
+      // After navigation, this mount is already mounted and throws error,
+      // which cause that Phonenix is not reconnected, so the file's content cannot be seen
+      // https://github.com/codesandbox/codesandbox-client/issues/4143
+      this.mountableFilesystem.umount('/home/sandbox/.cache');
+    } catch {
+      //
+    }
 
     if (isServer && this.options.getCurrentUser()?.experiments.containerLsp) {
       childProcess.addDefaultForkHandler(this.createContainerForkHandler());
@@ -442,7 +454,7 @@ export class VSCodeEffect {
     if (isFirstLoad) {
       const container = this.elements.editor;
 
-      await new Promise(resolve => {
+      await new Promise<void>(resolve => {
         loadScript(true, ['vs/editor/codesandbox.editor.main'])(resolve);
       }).then(() => this.loadEditor(window.monaco, container));
     }
@@ -473,12 +485,12 @@ export class VSCodeEffect {
     }
   }
 
-  public async setModuleCode(module: Module) {
+  public setModuleCode(module: Module, triggerChangeEvent = false) {
     if (!this.modelsHandler) {
       return;
     }
 
-    await this.modelsHandler.setModuleCode(module);
+    this.modelsHandler.setModuleCode(module, triggerChangeEvent);
   }
 
   public async closeAllTabs() {
@@ -507,7 +519,7 @@ export class VSCodeEffect {
     // allowing for a paint, like selections in explorer. For this to work we have to ensure
     // that we are actually indeed still trying to open this file, as we might have changed
     // the file
-    return new Promise(resolve => {
+    return new Promise<void>(resolve => {
       requestAnimationFrame(async () => {
         const currentModule = this.options.getCurrentModule();
         if (currentModule && module.id === currentModule.id) {
@@ -567,6 +579,44 @@ export class VSCodeEffect {
     }
   };
 
+  public async openDiff(sandboxId: string, module: Module, oldCode: string) {
+    if (!module.path) {
+      return;
+    }
+
+    const recoverPath = `/recover/${sandboxId}/recover-${module.path.replace(
+      /\//g,
+      ' '
+    )}`;
+    const filePath = `/sandbox${module.path}`;
+    const fileSystem = window.BrowserFS.BFSRequire('fs');
+
+    // We have to write a recover file to the filesystem, we save it behind
+    // the sandboxId
+    if (!fileSystem.existsSync(`/recover/${sandboxId}`)) {
+      fileSystem.mkdirSync(`/recover/${sandboxId}`);
+    }
+    // We write the recover file with the old code, as the new code is already applied
+    fileSystem.writeFileSync(recoverPath, oldCode);
+
+    // We open a conflict resolution editor for the files
+    this.editorApi.editorService.openEditor({
+      leftResource: this.monaco.Uri.from({
+        scheme: 'conflictResolution',
+        path: recoverPath,
+      }),
+      rightResource: this.monaco.Uri.file(filePath),
+      label: `Recover - ${module.path}`,
+      options: {
+        pinned: true,
+      },
+    });
+  }
+
+  public clearComments() {
+    this.modelsHandler.clearComments();
+  }
+
   public setCorrections = (corrections: ModuleCorrection[]) => {
     const activeEditor = this.editorApi.getActiveCodeEditor();
     if (activeEditor) {
@@ -619,15 +669,17 @@ export class VSCodeEffect {
     if (activeEditor) {
       const model = activeEditor.getModel();
 
-      const lineColumnPos = indexToLineAndColumn(
-        model.getLinesContent() || [],
-        pos
-      );
+      if (model) {
+        const lineColumnPos = indexToLineAndColumn(
+          model.getLinesContent() || [],
+          pos
+        );
 
-      activeEditor.revealPositionInCenterIfOutsideViewport(
-        lineColumnPos,
-        scrollType
-      );
+        activeEditor.revealPositionInCenterIfOutsideViewport(
+          lineColumnPos,
+          scrollType
+        );
+      }
     }
   }
 
@@ -655,6 +707,38 @@ export class VSCodeEffect {
     }
   }
 
+  /**
+   * Set the selection inside the editor
+   * @param head Start of the selection
+   * @param anchor End of the selection
+   */
+  setSelection(head: number, anchor: number) {
+    const activeEditor = this.editorApi.getActiveCodeEditor();
+    if (!activeEditor) {
+      return;
+    }
+
+    const model = activeEditor.getModel();
+    if (!model) {
+      return;
+    }
+
+    const headPos = indexToLineAndColumn(model.getLinesContent() || [], head);
+    const anchorPos = indexToLineAndColumn(
+      model.getLinesContent() || [],
+      anchor
+    );
+    const range = new this.monaco.Range(
+      headPos.lineNumber,
+      headPos.column,
+      anchorPos.lineNumber,
+      anchorPos.column
+    );
+
+    this.revealRange(range);
+    activeEditor.setSelection(range);
+  }
+
   // Communicates the endpoint for the WebsocketLSP
   private createContainerForkHandler() {
     return () => {
@@ -674,9 +758,7 @@ export class VSCodeEffect {
   private getLspEndpoint() {
     // return 'ws://localhost:1023';
     // TODO: merge host logic with executor-manager
-    const sseHost = process.env.STAGING_API
-      ? 'https://codesandbox.stream'
-      : 'https://codesandbox.io';
+    const sseHost = process.env.ENDPOINT || 'https://codesandbox.io';
     return sseHost.replace(
       'https://',
       `wss://${this.options.getCurrentSandbox()?.id}-lsp.sse.`
@@ -729,6 +811,7 @@ export class VSCodeEffect {
       this.createFileSystem('CodeSandboxEditorFS', {
         api: {
           getSandboxFs: this.options.getSandboxFs,
+          getJwt: () => this.options.getState().jwt,
         },
       }),
       this.createFileSystem('LocalStorage', {}),
@@ -750,18 +833,28 @@ export class VSCodeEffect {
         )
       ),
       this.createFileSystem('InMemory', {}),
+      this.createFileSystem('InMemory', {}),
     ]);
 
-    const [root, sandbox, vscode, home, extensions, customTheme] = fileSystems;
+    const [
+      root,
+      sandbox,
+      vscode,
+      home,
+      extensions,
+      customTheme,
+      recover,
+    ] = fileSystems;
 
-    const mfs = await this.createFileSystem('MountableFileSystem', {
+    const mfs = (await this.createFileSystem('MountableFileSystem', {
       '/': root,
       '/sandbox': sandbox,
       '/vscode': vscode,
       '/home': home,
       '/extensions': extensions,
       '/extensions/custom-theme': customTheme,
-    });
+      '/recover': recover,
+    })) as any;
 
     window.BrowserFS.initialize(mfs);
 
@@ -806,7 +899,7 @@ export class VSCodeEffect {
       { IEditorService },
       { ICodeEditorService },
       { ITextFileService },
-
+      { ILifecycleService },
       { IEditorGroupsService },
       { IStatusbarService },
       { IExtensionService },
@@ -822,6 +915,7 @@ export class VSCodeEffect {
       r('vs/workbench/services/editor/common/editorService'),
       r('vs/editor/browser/services/codeEditorService'),
       r('vs/workbench/services/textfile/common/textfiles'),
+      r('vs/platform/lifecycle/common/lifecycle'),
       r('vs/workbench/services/editor/common/editorGroupsService'),
       r('vs/platform/statusbar/common/statusbar'),
       r('vs/workbench/services/extensions/common/extensions'),
@@ -852,7 +946,7 @@ export class VSCodeEffect {
       );
     });
 
-    return new Promise(resolve => {
+    return new Promise<void>(resolve => {
       // It has to run the accessor within the callback
       serviceCollection.get(IInstantiationService).invokeFunction(accessor => {
         // Initialize these services
@@ -923,12 +1017,45 @@ export class VSCodeEffect {
         editorService.onDidActiveEditorChange(this.onActiveEditorChange);
         this.initializeCodeSandboxAPIListener();
 
-        if (this.settings.lintEnabled) {
+        if (!this.linter && this.settings.lintEnabled) {
           this.createLinter();
         }
+
+        const lifecycleService = accessor.get(ILifecycleService);
+
+        // Trigger all VSCode lifecycle listeners
+        lifecycleService.phase = 2; // Restoring
+        requestAnimationFrame(() => {
+          lifecycleService.phase = 3; // Running
+        });
+
         resolve();
       });
     });
+  }
+
+  private _cachedDependencies = {};
+  private _cachedDependenciesCode: string | undefined = undefined;
+  private getDependencies(sandbox: Sandbox): { [depName: string]: string } {
+    try {
+      const module = resolveModule(
+        '/package.json',
+        sandbox.modules,
+        sandbox.directories
+      );
+      if (this._cachedDependenciesCode !== module.code) {
+        this._cachedDependenciesCode = module.code;
+        const parsedPkg = JSON.parse(module.code);
+        this._cachedDependencies = {
+          ...(parsedPkg.dependencies || {}),
+          ...(parsedPkg.devDependencies || {}),
+        };
+      }
+    } catch (e) {
+      /* ignore */
+    }
+
+    return this._cachedDependencies;
   }
 
   private prepareElements() {
@@ -1047,8 +1174,11 @@ export class VSCodeEffect {
 
     if (activeEditor && activeEditor.getModel()) {
       const modulePath = activeEditor.getModel().uri.path;
+      const currentModule = this.options.getCurrentModule();
 
-      activeEditor.updateOptions({ readOnly: this.readOnly });
+      activeEditor.updateOptions({
+        readOnly: this.readOnly || currentModule?.isBinary,
+      });
 
       if (!modulePath.startsWith('/sandbox')) {
         return;
@@ -1060,20 +1190,21 @@ export class VSCodeEffect {
           activeEditor.getModel().getValue(),
           modulePath,
           activeEditor.getModel().getVersionId(),
-          sandbox.template
+          sandbox.template,
+          this.getDependencies(sandbox)
         );
       }
-
-      const currentModule = this.options.getCurrentModule();
 
       if (
         currentModule &&
         modulePath === `/sandbox${currentModule.path}` &&
         currentModule.code !== undefined &&
-        activeEditor.getValue() !== currentModule.code
+        activeEditor.getValue() !== currentModule.code &&
+        !currentModule.isBinary
       ) {
         // This means that the file in Cerebral is dirty and has changed,
         // VSCode only gets saved contents. In this case we manually set the value correctly.
+
         this.modelsHandler.isApplyingOperation = true;
         const model = activeEditor.getModel();
         model.applyEdits([
@@ -1106,7 +1237,11 @@ export class VSCodeEffect {
 
       this.modelCursorPositionListener = activeEditor.onDidChangeCursorPosition(
         cursor => {
-          if (COMMENTS) {
+          if (
+            sandbox &&
+            sandbox.featureFlags.comments &&
+            hasPermission(sandbox.authorization, 'comment')
+          ) {
             const model = activeEditor.getModel();
 
             this.modelsHandler.updateLineCommentIndication(
@@ -1181,11 +1316,13 @@ export class VSCodeEffect {
     if (!sandbox || !this.linter) {
       return;
     }
+
     this.linter.lint(
       model.getValue(),
       title,
       model.getVersionId(),
-      sandbox.template
+      sandbox.template,
+      this.getDependencies(sandbox)
     );
   }
 

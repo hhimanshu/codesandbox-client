@@ -1,64 +1,77 @@
-import React, { ComponentProps, FunctionComponent, useEffect } from 'react';
+import { Element, Stack, Text } from '@codesandbox/components';
+import React, { FunctionComponent, useEffect } from 'react';
 
 import { SubscribeForm } from 'app/components/SubscribeForm';
-import { useOvermind } from 'app/overmind';
-
-import { Title, Subheading } from '../elements';
+import { useAppState, useActions } from 'app/overmind';
 
 import { Card } from './Card';
-import { Container } from './elements';
+
+const Body: FunctionComponent = () => {
+  const { paymentDetailsUpdated } = useActions().preferences;
+  const {
+    isLoadingPaymentDetails,
+    paymentDetailError,
+    paymentDetails,
+  } = useAppState().preferences;
+
+  const { name } = paymentDetails || {};
+
+  if (isLoadingPaymentDetails) {
+    return (
+      <Text align="center" marginTop={6} size={3}>
+        Loading payment details...
+      </Text>
+    );
+  }
+
+  if (paymentDetailError) {
+    return (
+      <Text align="center" marginTop={6} size={3}>
+        {`An error occurred: ${paymentDetailError}`}
+      </Text>
+    );
+  }
+
+  return (
+    <Stack gap={4}>
+      <Element>
+        <Text block marginBottom={4} marginTop={4} size={3}>
+          Update card info
+        </Text>
+
+        <SubscribeForm
+          buttonName="Update"
+          loadingText="Updating Card Info..."
+          name={name}
+          subscribe={({ token }) => paymentDetailsUpdated(token)}
+        />
+      </Element>
+
+      <Element>
+        <Text block marginBottom={2} marginTop={4} size={3}>
+          Current card
+        </Text>
+
+        <Card />
+      </Element>
+    </Stack>
+  );
+};
 
 export const PaymentInfo: FunctionComponent = () => {
-  const {
-    actions: {
-      preferences: { paymentDetailsRequested, paymentDetailsUpdated },
-    },
-    state: {
-      preferences: {
-        isLoadingPaymentDetails,
-        paymentDetailError,
-        paymentDetails,
-      },
-    },
-  } = useOvermind();
+  const { paymentDetailsRequested } = useActions().preferences;
 
   useEffect(() => {
     paymentDetailsRequested();
   }, [paymentDetailsRequested]);
 
-  const updatePaymentDetails: ComponentProps<
-    typeof SubscribeForm
-  >['subscribe'] = ({ token }) => paymentDetailsUpdated(token);
-
-  const Body = () => {
-    const { brand, last4, name } = paymentDetails || {};
-    if (isLoadingPaymentDetails) {
-      return <div>Loading payment details...</div>;
-    }
-
-    if (paymentDetailError) {
-      return <div>An error occurred: {paymentDetailError}</div>;
-    }
-
-    return (
-      <div>
-        <Subheading>Current card</Subheading>
-        <Card brand={brand} last4={last4} name={name} />
-        <Subheading style={{ marginTop: '2rem' }}>Update card info</Subheading>
-        <SubscribeForm
-          buttonName="Update"
-          loadingText="Updating Card Info..."
-          name={name}
-          subscribe={updatePaymentDetails}
-        />
-      </div>
-    );
-  };
-
   return (
-    <Container>
-      <Title>Payment Info</Title>
+    <Element>
+      <Text block marginBottom={6} size={4} weight="bold">
+        Payment Info
+      </Text>
+
       <Body />
-    </Container>
+    </Element>
   );
 };

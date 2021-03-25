@@ -18,7 +18,12 @@ aliases:
       - packages/executors/dist
       - packages/node-services/lib
       - packages/notifications/lib
+      - packages/template-icons/lib
       - packages/sse-hooks/dist
+      - packages/sandpack-core/lib
+      - packages/browser-eslint-rules/lib
+      - packages/vue3-browser-compiler/lib
+      - packages/vue3-transpiler/lib
       - standalone-packages/codesandbox-browserfs/dist
       - standalone-packages/codesandbox-browserfs/build
       - standalone-packages/vscode-textmate/out
@@ -26,18 +31,19 @@ aliases:
 
   - &restore_deps_cache
     keys:
-      - v34-dependency-cache-{{ .Branch }}-{{ checksum "yarn.lock" }}
-      - v34-dependency-cache-{{ .Branch }}
-      - v34-dependency-cache
+      - v37-dependency-cache-{{ .Branch }}-{{ checksum "yarn.lock" }}
+      - v37-dependency-cache-{{ .Branch }}
+      - v37-dependency-cache
 
   - &save_deps_cache
-    key: v34-dependency-cache-{{ .Branch }}-{{ checksum "yarn.lock" }}
+    key: v37-dependency-cache-{{ .Branch }}-{{ checksum "yarn.lock" }}
     paths:
       - node_modules
       - packages/app/node_modules
       - packages/chrome-extension/node_modules
       - packages/codesandbox-api/node_modules
       - packages/components/node_modules
+      - packages/template-icons/node_modules
       - packages/common/node_modules
       - packages/dynamic-pages/node_modules
       - packages/deps/node_modules
@@ -48,54 +54,58 @@ aliases:
       - packages/react-embed/node_modules
       - packages/sandbox-hooks/node_modules
       - packages/sse-hooks/node_modules
+      - packages/sandpack-core/node_modules
+      - packages/browser-eslint-rules/node_modules
+      - packages/vue3-browser-compiler/node_modules
+      - packages/vue3-transpiler/node_modules
 
   - &restore_standalone_deps_cache
     keys:
-      - v34-standalone-dependency-cache-{{ .Branch }}-{{ checksum
+      - v37-standalone-dependency-cache-{{ .Branch }}-{{ checksum
         "standalone-packages/codesandbox-browserfs/yarn.lock" }}
-      - v34-standalone-dependency-cache-{{ .Branch }}
-      - v34-standalone-dependency-cache
+      - v37-standalone-dependency-cache-{{ .Branch }}
+      - v37-standalone-dependency-cache
 
   - &save_standalone_deps_cache
     key:
-      v34-standalone-dependency-cache-{{ .Branch }}-{{ checksum
+      v37-standalone-dependency-cache-{{ .Branch }}-{{ checksum
       "standalone-packages/codesandbox-browserfs/yarn.lock" }}
     paths:
       - standalone-packages/codesandbox-browserfs/node_modules
 
   - &restore_prod_homepage_cache
-    key: v34-prod-homepage-build-cache-master
+    key: v37-prod-homepage-build-cache-master
 
   - &restore_prod_result
     key:
-      v34-prod-build-result-{{ .Environment.CIRCLE_BRANCH
+      v37-prod-build-result-{{ .Environment.CIRCLE_BRANCH
       }}-{{.Environment.CIRCLE_SHA1 }}
 
   - &save_prod_build_cache
     key:
-      v34-prod-build-cache-{{ .Environment.CIRCLE_BRANCH
+      v37-prod-build-cache-{{ .Environment.CIRCLE_BRANCH
       }}-{{.Environment.CIRCLE_SHA1 }}
     paths:
       - packages/app/node_modules/.cache
 
   - &restore_prod_build_cache
     keys:
-      - v34-prod-build-cache-{{ .Environment.CIRCLE_BRANCH
+      - v37-prod-build-cache-{{ .Environment.CIRCLE_BRANCH
         }}-{{.Environment.CIRCLE_SHA1 }}
-      - v34-prod-build-cache-{{ .Environment.CIRCLE_BRANCH }}-
-      - v34-prod-build-cache-master-
+      - v37-prod-build-cache-{{ .Environment.CIRCLE_BRANCH }}-
+      - v37-prod-build-cache-master-
 
   # To persist the images built by sharp
   - &save_prod_homepage_cache
     key:
-      v34-prod-homepage-build-cache-{{ .Environment.CIRCLE_BRANCH }}-{{
+      v37-prod-homepage-build-cache-{{ .Environment.CIRCLE_BRANCH }}-{{
       .Environment.CIRCLE_SHA1 }}
     paths:
       - ./packages/homepage/public
 
   - &save_prod_result
     key:
-      v34-prod-build-result-{{ .Environment.CIRCLE_BRANCH }}-{{
+      v37-prod-build-result-{{ .Environment.CIRCLE_BRANCH }}-{{
       .Environment.CIRCLE_SHA1 }}
     paths:
       - ./www
@@ -116,7 +126,12 @@ aliases:
 executors:
   node:
     docker:
-      - image: circleci/node:10
+      - image: circleci/node:10.22.1
+    working_directory: ~/codesandbox-client
+  node-xlarge:
+    docker:
+      - image: circleci/node:10.22.1
+    resource_class: xlarge
     working_directory: ~/codesandbox-client
   node-with-puppeteer:
     docker:
@@ -136,14 +151,14 @@ commands:
     steps:
       - restore_cache:
           keys:
-            - v34-source-cache-{{ .Branch }}-{{ .Revision }}
-            - v34-source-cache-{{ .Branch }}-
-            - v34-source-cache-
+            - v37-source-cache-{{ .Branch }}-{{ .Revision }}
+            - v37-source-cache-{{ .Branch }}-
+            - v37-source-cache-
 
       - checkout
 
       - save_cache:
-          key: v34-source-cache-{{ .Branch }}-{{ .Revision }}
+          key: v37-source-cache-{{ .Branch }}-{{ .Revision }}
           paths:
             - '.git'
   build_deps:
@@ -278,12 +293,12 @@ commands:
 
 jobs:
   build-deps:
-    executor: node
+    executor: node-xlarge
     steps:
       - checkout_with_cache
       - build_deps
   build-prod:
-    executor: node
+    executor: node-xlarge
     steps:
       - checkout_with_cache
       - build_prod
@@ -376,28 +391,29 @@ workflows:
       - create-docker-image:
           requires:
             - build-prod
-      - deploy-production-approval:
-          type: approval
-          filters:
-            branches:
-              only:
-                - master
       - deploy-to-production:
           requires:
-            - deploy-production-approval
             - create-docker-image
-            - build-prod
             - lint
             - typecheck
-            # - test-integrations
+            - test-integrations
             - test-jest
+            - test-visual-regressions
           filters:
             branches:
               only:
                 - master
       - deploy-staging-approval:
           type: approval
+          filters:
+            branches:
+              ignore:
+                - master
       - deploy-to-staging:
           requires:
             - deploy-staging-approval
             - create-docker-image
+          filters:
+            branches:
+              ignore:
+                - master

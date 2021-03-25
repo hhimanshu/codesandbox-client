@@ -92,7 +92,7 @@ in order to
 ### 1. Add template logo
 
 Add the logo for your template in the
-[templates repo](https://github.com/codesandbox/codesandbox-templates/tree/master/packages/template-icons/src)
+[templates repo](https://github.com/codesandbox/codesandbox-client/tree/master/packages/template-icons/src)
 (`codesandbox-templates/packages/template-icons/src`).
 
 #### SVG logos
@@ -102,8 +102,8 @@ content. If your template's name is "Banana", name your logo file "BananaIcon".
 
 Examples:
 
-- [Vue logo](https://github.com/codesandbox/codesandbox-templates/blob/master/packages/template-icons/src/VueIcon.tsx)
-- [React logo](https://github.com/codesandbox/codesandbox-templates/blob/master/packages/template-icons/src/ReactIcon.tsx)
+- [Vue logo](https://github.com/codesandbox/codesandbox-client/tree/master/packages/template-icons/src/VueIcon.tsx)
+- [React logo](https://github.com/codesandbox/codesandbox-client/tree/master/packages/template-icons/src/ReactIcon.tsx)
 
 ### 2. Add template definition
 
@@ -148,7 +148,7 @@ preset.
 
 We call a template configuration for the bundler in CodeSandbox a 'Preset'. All
 currently installed presets are defined in the
-[index.ts](https://github.com/codesandbox/codesandbox-client/blob/master/packages/app/src/sandbox/eval/index.js)
+[index.ts](https://github.com/codesandbox/codesandbox-client/blob/master/packages/app/src/sandbox/eval/index.ts)
 file under `codesandbox-client/packages/app/src/sandbox/eval/presets`.
 
 In order to understand how this configuration works, we recommend you to take a

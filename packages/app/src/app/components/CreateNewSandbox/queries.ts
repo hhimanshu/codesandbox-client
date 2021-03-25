@@ -130,7 +130,7 @@ export const LIST_BOOKMARKED_TEMPLATES_QUERY = gql`
 `;
 
 export const MAKE_SANDBOXES_TEMPLATE_MUTATION = gql`
-  mutation MakeSandboxesTemplate($sandboxIds: [ID]!) {
+  mutation MakeSandboxesTemplate($sandboxIds: [ID!]!) {
     makeSandboxesTemplates(sandboxIds: $sandboxIds) {
       id
     }
@@ -138,7 +138,7 @@ export const MAKE_SANDBOXES_TEMPLATE_MUTATION = gql`
 `;
 
 export const UNMAKE_SANDBOXES_TEMPLATE_MUTATION = gql`
-  mutation UnmakeSandboxesTemplate($sandboxIds: [ID]!) {
+  mutation UnmakeSandboxesTemplate($sandboxIds: [ID!]!) {
     unmakeSandboxesTemplates(sandboxIds: $sandboxIds) {
       id
     }
@@ -277,17 +277,15 @@ export function makeTemplates(
           }`,
           status: NotificationStatus.SUCCESS,
           actions: {
-            primary: [
-              {
-                label: 'Undo',
-                run: () => {
-                  track('Template - Removed', {
-                    source: 'Undo',
-                  });
-                  unmakeTemplates(unpackedSelectedSandboxes);
-                },
+            primary: {
+              label: 'Undo',
+              run: () => {
+                track('Template - Removed', {
+                  source: 'Undo',
+                });
+                unmakeTemplates(unpackedSelectedSandboxes);
               },
-            ],
+            },
           },
         });
       }),

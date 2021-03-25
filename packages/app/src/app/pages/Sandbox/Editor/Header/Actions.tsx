@@ -1,9 +1,10 @@
 import Tooltip from '@codesandbox/common/lib/components/Tooltip';
 import { Avatar, Button, Stack } from '@codesandbox/components';
 import css from '@styled-system/css';
-import { useOvermind } from 'app/overmind';
+import { useAppState, useActions } from 'app/overmind';
 import { UserMenu } from 'app/pages/common/UserMenu';
 import React, { useEffect, useState } from 'react';
+import { Notifications } from 'app/components/Notifications';
 
 import {
   EmbedIcon,
@@ -15,40 +16,44 @@ import {
 } from './icons';
 import { Collaborators } from './Collaborators';
 import { CollaboratorHeads } from './CollaboratorHeads';
+import { ForkButton } from './ForkButton';
 
-const TooltipButton = ({ tooltip, ...props }) => (
-  <Tooltip content={tooltip}>
-    <Button {...props} />
-  </Tooltip>
-);
+const TooltipButton = ({ tooltip, ...props }) => {
+  if (!tooltip) return <Button {...props} />;
+
+  return (
+    <Tooltip content={tooltip}>
+      <Button {...props} />
+    </Tooltip>
+  );
+};
 
 export const Actions = () => {
   const {
-    actions: {
-      modalOpened,
-      editor: { likeSandboxToggled, forkSandboxClicked },
-      explore: { pickSandboxModal },
-    },
-    state: {
-      hasLogIn,
-      updateStatus,
-      user,
-      live: { isLive },
-      editor: {
-        currentSandbox: {
-          id,
-          author,
-          owned,
-          title,
-          description,
-          likeCount,
-          userLiked,
-        },
-      },
-    },
-
-    actions: { signInClicked },
-  } = useOvermind();
+    signInClicked,
+    modalOpened,
+    openCreateSandboxModal,
+    editor: { likeSandboxToggled, forkSandboxClicked },
+    explore: { pickSandboxModal },
+  } = useActions();
+  const {
+    hasLogIn,
+    updateStatus,
+    user,
+    activeWorkspaceAuthorization,
+    live: { isLive },
+    editor: { isForkingSandbox, currentSandbox },
+  } = useAppState();
+  const {
+    id,
+    author,
+    owned,
+    title,
+    description,
+    likeCount,
+    userLiked,
+    permissions,
+  } = currentSandbox;
   const [fadeIn, setFadeIn] = useState(false);
 
   useEffect(() => {
@@ -62,13 +67,34 @@ export const Actions = () => {
     return () => {};
   }, [fadeIn]);
 
-  const handleSignIn = async () => {
-    await signInClicked({ useExtraScopes: false });
-  };
+  const handleSignIn = () => signInClicked();
 
-  let primaryAction;
+  let primaryAction: 'Sign in' | 'Share' | 'Fork';
   if (!hasLogIn) primaryAction = 'Sign in';
   else primaryAction = owned ? 'Share' : 'Fork';
+
+  const NotLive = () =>
+    hasLogIn ? (
+      <TooltipButton
+        tooltip={userLiked ? 'Undo like sandbox' : 'Like sandbox'}
+        variant="link"
+        onClick={() => likeSandboxToggled(id)}
+      >
+        <LikeIcon
+          css={css({
+            height: 3,
+            marginRight: 1,
+            color: userLiked ? 'reds.500' : 'inherit',
+          })}
+        />{' '}
+        <span>{likeCount}</span>
+      </TooltipButton>
+    ) : (
+      <Stack gap={1} paddingX={2} align="center">
+        <LikeIcon css={css({ height: 3 })} />
+        <span>{likeCount}</span>
+      </Stack>
+    );
 
   return (
     <Stack
@@ -100,35 +126,13 @@ export const Actions = () => {
         </TooltipButton>
       )}
 
-      {user?.experiments.collaborator && isLive ? (
+      {user?.experiments?.collaborator && isLive ? (
         <CollaboratorHeads />
       ) : (
-        <>
-          {hasLogIn ? (
-            <TooltipButton
-              tooltip={userLiked ? 'Undo like sandbox' : 'Like sandbox'}
-              variant="link"
-              onClick={() => likeSandboxToggled(id)}
-            >
-              <LikeIcon
-                css={css({
-                  height: 3,
-                  marginRight: 1,
-                  color: userLiked ? 'reds.500' : 'inherit',
-                })}
-              />{' '}
-              <span>{likeCount}</span>
-            </TooltipButton>
-          ) : (
-            <Stack gap={1} paddingX={2} align="center">
-              <LikeIcon css={css({ height: 3 })} />
-              <span>{likeCount}</span>
-            </Stack>
-          )}
-        </>
+        <NotLive />
       )}
 
-      {false && user?.curatorAt && (
+      {user?.curatorAt && (
         <Button
           variant="secondary"
           css={css({ paddingX: 3 })}
@@ -138,29 +142,26 @@ export const Actions = () => {
         </Button>
       )}
 
-      {user?.experiments.collaborator && (
-        <>
-          {author ? (
-            <Collaborators
-              renderButton={props => (
-                <Button
-                  variant={primaryAction === 'Share' ? 'primary' : 'secondary'}
-                  {...props}
-                >
-                  <EmbedIcon css={css({ height: 3, marginRight: 1 })} /> Share
-                </Button>
-              )}
-            />
-          ) : (
-            <Button
-              variant={primaryAction === 'Share' ? 'primary' : 'secondary'}
-              onClick={() => modalOpened({ modal: 'share' })}
-            >
-              <EmbedIcon css={css({ height: 3, marginRight: 1 })} /> Embed
-            </Button>
-          )}
-        </>
-      )}
+      {user?.experiments.collaborator &&
+        (author ? (
+          <Collaborators
+            renderButton={props => (
+              <Button
+                variant={primaryAction === 'Share' ? 'primary' : 'secondary'}
+                {...props}
+              >
+                <EmbedIcon css={css({ height: 3, marginRight: 1 })} /> Share
+              </Button>
+            )}
+          />
+        ) : (
+          <Button
+            variant={primaryAction === 'Share' ? 'primary' : 'secondary'}
+            onClick={() => modalOpened({ modal: 'share' })}
+          >
+            <EmbedIcon css={css({ height: 3, marginRight: 1 })} /> Embed
+          </Button>
+        ))}
 
       {!user?.experiments.collaborator && (
         <Button
@@ -171,23 +172,43 @@ export const Actions = () => {
         </Button>
       )}
 
-      <Button
-        variant={primaryAction === 'Fork' ? 'primary' : 'secondary'}
-        onClick={forkSandboxClicked}
-      >
-        <ForkIcon css={css({ height: 3, marginRight: 1 })} /> Fork
-      </Button>
+      {user ? (
+        <ForkButton
+          user={user}
+          forkClicked={teamId => forkSandboxClicked({ teamId })}
+          variant={primaryAction === 'Fork' ? 'primary' : 'secondary'}
+        />
+      ) : (
+        <TooltipButton
+          tooltip={
+            permissions.preventSandboxLeaving
+              ? 'You don not have permission to fork this sandbox'
+              : null
+          }
+          loading={isForkingSandbox}
+          variant={primaryAction === 'Fork' ? 'primary' : 'secondary'}
+          onClick={() => forkSandboxClicked({})}
+          disabled={permissions.preventSandboxLeaving}
+        >
+          <ForkIcon css={css({ height: 3, marginRight: 1 })} /> Fork
+        </TooltipButton>
+      )}
+
       <Button
         variant="secondary"
         css={css({ paddingX: 3 })}
-        onClick={() => modalOpened({ modal: 'newSandbox' })}
+        onClick={() => openCreateSandboxModal({})}
+        disabled={activeWorkspaceAuthorization === 'READ'}
       >
         Create Sandbox
       </Button>
+
+      {hasLogIn && <Notifications />}
       {hasLogIn ? (
         <UserMenu>
           {user?.experiments.collaborator ? (
             <Button
+              as={UserMenu.Button}
               variant="secondary"
               css={css({
                 width: 26,
@@ -197,12 +218,21 @@ export const Actions = () => {
               <MoreMenuIcon />
             </Button>
           ) : (
-            <Avatar
-              user={{ ...user, subscriptionSince: null }}
+            <Button
+              as={UserMenu.Button}
               css={css({
-                size: '26px', // match button size next to it
+                display: 'flex',
+                width: 26,
+                height: 26, // match button size next to it
               })}
-            />
+            >
+              <Avatar
+                user={{ ...user, subscriptionSince: null }}
+                css={css({
+                  size: '26px', // match button size next to it
+                })}
+              />
+            </Button>
           )}
         </UserMenu>
       ) : (

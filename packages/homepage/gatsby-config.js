@@ -32,7 +32,7 @@ module.exports = {
           {
             resolve: `gatsby-remark-images`,
             options: {
-              maxWidth: 740,
+              maxWidth: 768,
               linkImagesToOriginal: true,
             },
           },
@@ -61,7 +61,7 @@ module.exports = {
     `gatsby-plugin-styled-components`,
     `gatsby-plugin-react-helmet`,
     `gatsby-plugin-remove-trailing-slashes`,
-    `gatsby-plugin-sitemap`,
+    { resolve: `gatsby-plugin-sitemap`, options: { exclude: ['/index2'] } },
     {
       resolve: `gatsby-plugin-google-tagmanager`,
       options: {

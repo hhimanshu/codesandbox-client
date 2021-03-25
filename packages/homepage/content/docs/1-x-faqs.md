@@ -16,7 +16,7 @@ Reason, as well as vanilla JavaScript that uses Parcel, and one for static
 
 We also have container templates for: Node.js, Angular, Adonis, Gatsby, Marko,
 Nuxt, Next, Sapper, Apollo, Ember, Nest, Styleguidist, MDX Deck, Gridsome,
-Quasar, and Vuepress.
+Quasar, Docusaurus and Vuepress.
 
 [Create a sandbox from a template](https://codesandbox.io/s/), or read more
 about the
@@ -32,7 +32,6 @@ Note that a [Pro subscription](https://codesandbox.io/pricing) is required to
 make sandboxes private or unlisted.
 
 ![Make private in the editor](./images/sandbox-private.png)
-![Make private from the dashboard](./images/dashboard-private.png)
 
 ## I'm getting a 422 error when importing from GitHub, why?
 
@@ -51,15 +50,11 @@ recommend using a container sandbox.
 
 ## Can I change the Node version used in a container sandbox?
 
-Container sandboxes run Node v10.18.1 by default. While this system version
-can't be changed, you can instead make use of the
-[node](https://www.npmjs.com/package/node) package. Add the version of the node
-package you would like to use to your sandbox in the same way you would any
-other package. Since npm runs scripts with the local `./node_modules/.bin` in
-the `PATH` ahead of the system copy, this means you can use this local version
-of node instead of the system version.
+Yes. Container sandboxes run Node v10.20.1 (LTS) by default. However, you can
+specify a `node` value to alter the version in `sandbox.config.json`, which will
+be used instead. For further details, see [configuration](/docs/configuration).
 
-## Can I open the terminal / console / test panel instead of the browser in a sandbox?
+## Can I open the terminal or console or test panel instead of the browser in a sandbox?
 
 Yes, the terminal, console, and problems tabs are all draggable. Click on the
 tab and drag it up into the bar alongside browser and tests. You can then
@@ -68,6 +63,12 @@ right in the list of tabs is what opens first when other folks view the sandbox.
 The ordering is maintained within the sandbox. You can also achieve this change
 by setting a value for "view" in a
 [sandbox config file](/docs/configuration#sandbox-configuration).
+
+## How do I change the font used in the editor?
+
+Ensure the font you want to use has been installed on your computer, then put
+the name of it first in the comma-separated list under 'Editor: Font Family'
+from File > Preferences > Settings in the editor.
 
 ## Are there any limitations with sandboxes?
 
@@ -117,7 +118,17 @@ copy the contents and paste it into Preferences > Appearance from the top-right
 avatar menu. After completing that you need to reload the browser and select
 "Custom" as your color theme from File > Preferences > Color Theme.
 
-## How do I cancel my Pro/Patron plan?
+## I can't edit my code because of an infinite loop
+
+While we do have infinite loop protection as a
+[configurable option](https://codesandbox.io/docs/configuration) it doesn't
+prevent all scenarios where infinite loops can occur, such as with incomplete
+code. When this happens, you can append `runonclick=1` to the editor URL to stop
+the code from being automatically executed enabling you to edit your code to
+resolve it. For example:
+[https://codesandbox.io/s/new?runonclick=1](https://codesandbox.io/s/new?runonclick=1)
+
+## How do I cancel my Pro or Patron plan?
 
 For Pro users, you can cancel your subscription on the
 [Pro page](https://codesandbox.io/pro). For legacy Patron users, you can cancel

@@ -1,29 +1,28 @@
 import theme from '@codesandbox/common/lib/theme';
 import { Directory, Module } from '@codesandbox/common/lib/types';
-import { ContextMenu, Item } from 'app/components/ContextMenu';
+import { ListAction, Stack, Text } from '@codesandbox/components';
+import css from '@styled-system/css';
+import { ContextMenu, ContextMenuItemType } from 'app/components/ContextMenu';
 import React, { useState } from 'react';
 import { DragSource } from 'react-dnd';
 
-import { Stack, Text, ListAction } from '@codesandbox/components';
-import css from '@styled-system/css';
-
 import {
-  EditIcon,
-  DeleteIcon,
   AddDirectoryIcon,
-  UploadFileIcon,
   AddFileIcon,
-  UndoIcon,
+  DeleteIcon,
+  EditIcon,
   NotSyncedIcon,
+  UndoIcon,
+  UploadFileIcon,
 } from '../../icons';
-
 import EditIcons from './EditIcons';
-import EntryIcons from './EntryIcons';
+import { EntryIcons } from './EntryIcons';
 import { FileInput } from './FileInput';
 
 interface IEntryProps {
   renameValidator?: (id: string, title: string) => string | false | null;
   shortid?: string;
+  readonly?: boolean;
   id: string;
   title?: string;
   root?: boolean;
@@ -56,9 +55,10 @@ interface IEntryProps {
   state?: string;
 }
 
-const Entry: React.FC<IEntryProps> = ({
+const EntryComponent: React.FC<IEntryProps> = ({
   title,
   id,
+  readonly,
   depth,
   type,
   active,
@@ -133,6 +133,16 @@ const Entry: React.FC<IEntryProps> = ({
   const onMouseEnter = () => setHovering(true);
   const onMouseLeave = () => setHovering(false);
 
+  const onKeyPress = e => {
+    if (e.key === 'Enter') {
+      if (setCurrentModule) {
+        setCurrentModuleAction();
+      } else if (typeof onClick === 'function') {
+        onClick();
+      }
+    }
+  };
+
   const items = [
     [
       isNotSynced && {
@@ -169,16 +179,20 @@ const Entry: React.FC<IEntryProps> = ({
         icon: DeleteIcon,
       },
     ].filter(Boolean),
-  ].filter(Boolean) as Item[];
+  ].filter(Boolean) as ContextMenuItemType[];
 
   return connectDragSource(
     <div>
-      <ContextMenu items={items}>
+      <ContextMenu items={readonly ? [] : items}>
         <ListAction
           justify="space-between"
           onClick={setCurrentModule ? setCurrentModuleAction : onClick}
+          onKeyPress={onKeyPress}
+          // @ts-ignore
+          tabIndex="0"
           onDoubleClick={markTabsNotDirty}
           aria-selected={active}
+          aria-expanded={active}
           onMouseEnter={onMouseEnter}
           onMouseLeave={onMouseLeave}
           css={{
@@ -229,17 +243,19 @@ const Entry: React.FC<IEntryProps> = ({
                   entry
                 </Text>
               )}
-              <EditIcons
-                hovering={hovering}
-                onCreateFile={onCreateModuleClick}
-                onCreateDirectory={onCreateDirectoryClick}
-                onUploadFile={onUploadFileClick}
-                onDiscardChanges={isNotSynced && discardModuleChangesAction}
-                onDelete={deleteEntry && deleteAction}
-                onEdit={rename && renameAction}
-                active={active}
-                forceShow={window.__isTouch && type === 'directory-open'}
-              />
+              {!readonly && (
+                <EditIcons
+                  hovering={hovering}
+                  onCreateFile={onCreateModuleClick}
+                  onCreateDirectory={onCreateDirectoryClick}
+                  onUploadFile={onUploadFileClick}
+                  onDiscardChanges={isNotSynced && discardModuleChangesAction}
+                  onDelete={deleteEntry && deleteAction}
+                  onEdit={rename && renameAction}
+                  active={active}
+                  forceShow={window.__isTouch && type === 'directory-open'}
+                />
+              )}
             </Stack>
           )}
         </ListAction>
@@ -266,7 +282,7 @@ const Entry: React.FC<IEntryProps> = ({
 };
 
 const entrySource = {
-  canDrag: props => !!props.id,
+  canDrag: props => !props.readonly && !!props.id,
   beginDrag: props => {
     if (props.closeTree) props.closeTree();
 
@@ -286,4 +302,8 @@ const collectSource = (connect, monitor) => ({
   isDragging: monitor.isDragging(),
 });
 
-export default DragSource('ENTRY', entrySource, collectSource)(Entry);
+export const Entry = DragSource(
+  'ENTRY',
+  entrySource,
+  collectSource
+)(EntryComponent);

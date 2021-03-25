@@ -2,7 +2,7 @@ import { dispatch, actions, listen } from 'codesandbox-api';
 import { react, reactTs } from '@codesandbox/common/lib/templates';
 import { messages } from '@codesandbox/common/lib/utils/jest-lite';
 
-import expect from 'jest-matchers';
+import expect from 'expect';
 import jestMock from 'jest-mock';
 import jestTestHooks from 'jest-circus';
 
@@ -24,11 +24,11 @@ import {
 } from 'jest-circus/build/state';
 import { parse } from 'sandbox-hooks/react-error-overlay/utils/parser';
 import { map } from 'sandbox-hooks/react-error-overlay/utils/mapper';
+import { Manager } from 'sandpack-core';
+import { Module } from 'sandpack-core/lib/types/module';
 
 import run from './run-circus';
 
-import Manager from '../manager';
-import { Module } from '../types/module';
 import { Event, TestEntry, DescribeBlock, TestName, TestFn } from './types';
 
 export { messages };
@@ -58,12 +58,12 @@ let jsdomPromise = null;
  * Load JSDOM while the sandbox loads. Before we run a test we make sure that this has been loaded.
  */
 const getJSDOM = () => {
-  let jsdomPath = '/static/js/jsdom-4.0.0.min.js';
+  let jsdomPath = '/static/js/jsdom-16.3.0.min.js';
   if (
     navigator.userAgent.indexOf('jsdom') !== -1 &&
     process.env.NODE_ENV === 'test'
   ) {
-    jsdomPath = 'file://' + path.resolve('./static/js/jsdom-4.0.0.min.js');
+    jsdomPath = 'file://' + path.resolve('./static/js/jsdom-16.3.0.min.js');
   }
 
   jsdomPromise = jsdomPromise || addScript(jsdomPath);
@@ -114,7 +114,7 @@ export default class TestRunner {
     this.sendMessage(messages.INITIALIZE);
   }
 
-  testGlobals(module: Module) {
+  public getRuntimeGlobals(module: Module) {
     const test = (testName: TestName, fn?: TestFn) =>
       dispatchJest({
         fn,
@@ -144,23 +144,71 @@ export default class TestRunner {
     test.skip = skip;
 
     const it = test;
-    const { window: jsdomWindow } = this.dom;
+    return {
+      ...jestTestHooks,
+      test,
+      jest: jestMock,
+      it,
+      expect,
+    };
+  }
+
+  /**
+   * In this function we actually set some globals on the global window. This is because there are modules out
+   * there that try to overwrite some globals that we try to set. For example, this code won't work:
+   *
+   * ```js
+   * const test = 5;
+   * ```
+   *
+   * if we add test to the scope in the function:
+   *
+   * ```ts
+   * function evaluate(test) {
+   *   const test = 5; // <- Error!
+   * }
+   * ```
+   *
+   * Because of this, we have to put these globals on the global window. The big disadvantage of this is that
+   * we cannot run these tests in parallel. If we would want to do that we could introduce the globals in separate
+   * scope (separate function) that wraps the inner function, like this:
+   *
+   * ```ts
+   * (function jestGlobals(test) {
+   *   (function evaluate() {
+   *     const test = 5; // <- No Error!
+   *   })()
+   * })
+   * ```
+   *
+   * Right now we're making sure to clean the globals up in teardown
+   *
+   * Related issue: https://github.com/codesandbox/codesandbox-client/issues/4922
+   */
+  setTestGlobals(module: Module) {
+    const jsdomWindow = this.dom.window.document.defaultView;
     const { document: jsdomDocument } = jsdomWindow;
 
     // Set the modules that are not set on JSDOM
     jsdomWindow.Date = Date;
     jsdomWindow.fetch = fetch;
 
-    return {
-      ...jestTestHooks,
-      expect,
-      jest: jestMock,
-      test,
-      it,
+    const jestRuntimeGlobals = this.getRuntimeGlobals(module);
+
+    const globals = {
       document: jsdomDocument,
       window: jsdomWindow,
       global: jsdomWindow,
+
+      // When calling `Event` we don't want the native `Event` but the JSDOM version
+      Event: jsdomWindow.Event,
     };
+
+    Object.keys(jestRuntimeGlobals).forEach(globalKey => {
+      window[globalKey] = jestRuntimeGlobals[globalKey];
+    });
+
+    return globals;
   }
 
   static isTest(testPath: string) {
@@ -258,6 +306,26 @@ export default class TestRunner {
     });
   }
 
+  oldEnvVars: { [key: string]: string };
+  async setup() {
+    this.oldEnvVars = { ...this.manager.envVariables };
+    this.manager.envVariables.NODE_ENV = 'test';
+  }
+
+  async teardown() {
+    const global = this.dom.window.document.defaultView;
+    global.close();
+    Object.defineProperty(global, 'document', { value: null });
+    this.dom = null;
+    this.manager.envVariables = this.oldEnvVars;
+
+    // @ts-expect-error We don't have the module, but the module is only used in a lazy context
+    const jestRuntimeGlobals = this.getRuntimeGlobals();
+    Object.keys(jestRuntimeGlobals).forEach(globalKey => {
+      delete window[globalKey];
+    });
+  }
+
   /* istanbul ignore next */
   async runTests(force: boolean = false) {
     if (!this.watching && !force) {
@@ -313,6 +381,8 @@ export default class TestRunner {
 
     resetTestState();
 
+    await this.setup();
+
     await Promise.all(
       tests.map(async t => {
         dispatch(actions.error.clear(t.path, 'jest'));
@@ -322,14 +392,14 @@ export default class TestRunner {
             testModules.forEach(module => {
               this.manager.evaluateModule(module, {
                 force: true,
-                globals: this.testGlobals(module),
+                globals: this.setTestGlobals(module),
               });
             });
           }
 
           this.manager.evaluateModule(t, {
             force: true,
-            globals: this.testGlobals(t),
+            globals: this.setTestGlobals(t),
           });
           this.ranTests.add(t.path);
         } catch (e) {
@@ -341,6 +411,7 @@ export default class TestRunner {
     );
 
     await run();
+    await this.teardown();
 
     setTimeout(() => {
       this.sendMessage(messages.TOTAL_TEST_END);

@@ -1,26 +1,21 @@
 import Tooltip from '@codesandbox/common/lib/components/Tooltip';
-import theme from '@codesandbox/common/lib/design-language/theme';
 import track from '@codesandbox/common/lib/utils/analytics';
+import theme from '@codesandbox/components/lib/design-language/theme';
+import { useAppState, useActions } from 'app/overmind';
 import React, { FunctionComponent } from 'react';
 import { ThemeProvider } from 'styled-components';
 
-import { useOvermind } from 'app/overmind';
-
-import { Container, Text, Link, Select } from './elements';
+import { Container, Link, Select, Text } from './elements';
 import { Private, Public, Unlisted } from './icons';
 
 export const PrivacyTooltip: FunctionComponent = () => {
+  const { sandboxPrivacyChanged } = useActions().workspace;
   const {
-    actions: {
-      workspace: { sandboxPrivacyChanged },
+    editor: {
+      currentSandbox: { owned, privacy },
     },
-    state: {
-      editor: {
-        currentSandbox: { owned, privacy },
-      },
-      user,
-    },
-  } = useOvermind();
+    activeTeamInfo,
+  } = useAppState();
 
   const config = {
     0: {
@@ -47,6 +42,17 @@ export const PrivacyTooltip: FunctionComponent = () => {
   };
   const { description, Icon } = config[privacy];
 
+  const Owned = () =>
+    activeTeamInfo?.subscription ? (
+      <>Adjust privacy settings.</>
+    ) : (
+      <>
+        You can change privacy of a sandbox as a Pro.
+        <br />
+        <Link href="/pricing">Upgrade to Pro</Link>
+      </>
+    );
+
   return (
     <ThemeProvider theme={theme}>
       <Container>
@@ -54,25 +60,11 @@ export const PrivacyTooltip: FunctionComponent = () => {
           content={
             <>
               <Text size="3" marginBottom={4}>
-                {owned ? (
-                  <>
-                    {user?.subscription ? (
-                      'Adjust privacy settings.'
-                    ) : (
-                      <>
-                        You can change privacy of a sandbox as a Pro.
-                        <br />
-                        <Link href="/pricing">Upgrade to Pro</Link>
-                      </>
-                    )}
-                  </>
-                ) : (
-                  'The author has set privacy to'
-                )}
+                {owned ? <Owned /> : 'The author has set privacy to'}
               </Text>
 
               <Select
-                disabled={!user?.subscription || !owned}
+                disabled={!activeTeamInfo?.subscription || !owned}
                 marginBottom={2}
                 onChange={onChange}
                 value={privacy}

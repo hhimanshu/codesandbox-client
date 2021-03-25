@@ -5,15 +5,16 @@ import _debug from '@codesandbox/common/lib/utils/debug';
 import registerServiceWorker from '@codesandbox/common/lib/registerServiceWorker';
 import requirePolyfills from '@codesandbox/common/lib/load-dynamic-polyfills';
 import { getModulePath } from '@codesandbox/common/lib/sandbox/modules';
+import { endMeasure } from '@codesandbox/common/lib/utils/metrics';
 import { generateFileFromSandbox } from '@codesandbox/common/lib/templates/configuration/package-json';
 import { getSandboxId } from '@codesandbox/common/lib/utils/url-generator';
 import { getPreviewSecret } from 'sandbox-hooks/preview-secret';
 import { show404 } from 'sandbox-hooks/not-found-screen';
 
 import compile, { getCurrentManager } from './compile';
-import { endMeasure } from './utils/metrics';
 
 const host = process.env.CODESANDBOX_HOST;
+const withServiceWorker = !process.env.SANDPACK;
 const debug = _debug('cs:sandbox');
 
 export const SCRIPT_VERSION =
@@ -24,16 +25,33 @@ debug('Booting sandbox v2');
 endMeasure('boot', { lastTime: 0, displayName: 'Boot' });
 
 requirePolyfills().then(() => {
-  registerServiceWorker('/sandbox-service-worker.js', {});
-
-  function sendReady() {
-    dispatch({ type: 'initialized' });
+  if (withServiceWorker) {
+    registerServiceWorker('/sandbox-service-worker.js', {});
   }
 
+  function sendReady() {
+    dispatch({ type: 'initialized', url: document.location.href });
+  }
+
+  let isInitializationCompile = true;
   async function handleMessage(data, source) {
     if (source) {
       if (data.type === 'compile') {
+        // In sandpack we always broadcast a compile message from every manager whenever 1 frame reconnects.
+        // We do this because the initialized message does comes before the handshake is done, so there's no channel id.
+        // To prevent every mounted frame from recompiling, we explicitly flag that this compilation is meant to be the
+        // first compilation done by the frame. This way we can ensure that only the new frame, that
+        // hasn't compiled yet, will respond to the compile call. This currently is Sandpack specific.
+        if (
+          data.isInitializationCompile !== undefined &&
+          data.isInitializationCompile === true &&
+          !isInitializationCompile
+        ) {
+          return;
+        }
+
         compile(data);
+        isInitializationCompile = false;
       } else if (data.type === 'get-transpiler-context') {
         const manager = getCurrentManager();
 
@@ -108,6 +126,7 @@ requirePolyfills().then(() => {
           entry: '/' + x.data.entry,
           externalResources: x.data.externalResources,
           dependencies: x.data.npmDependencies,
+          customNpmRegistries: x.data.npmRegistries,
           hasActions: false,
           template: x.data.template,
           version: 3,

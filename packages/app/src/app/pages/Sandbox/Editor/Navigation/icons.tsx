@@ -5,10 +5,21 @@ export const CommentsIcon = props => (
     <g fillRule="evenodd" clipRule="evenodd">
       <path fill="currentColor" d="M10 14a6 6 0 116 6h-6z" />
       <path
-        fill="#343434"
+        fill="currentColor"
         d="M19.697 19.945a5.265 5.265 0 005.04 3.74H30V18.42a5.263 5.263 0 00-7.021-4.962 6.996 6.996 0 01-3.281 6.486z"
       />
     </g>
+  </svg>
+);
+
+export const SearchIcon = props => (
+  <svg width={40} height={32} fill="none" viewBox="0 0 40 32" {...props}>
+    <path
+      fill="currentColor"
+      fillRule="evenodd"
+      d="M20 26c5.523 0 10-4.477 10-10S25.523 6 20 6s-10 4.477-10 10 4.477 10 10 10zm-.46-15a4.54 4.54 0 102.404 8.393L24.8 22.45 26.25 21l-2.857-3.056A4.54 4.54 0 0019.54 11zm-2.49 4.54a2.49 2.49 0 114.98 0 2.49 2.49 0 01-4.98 0z"
+      clipRule="evenodd"
+    />
   </svg>
 );
 

@@ -1,11 +1,22 @@
-import { DiffTab, TabType } from '@codesandbox/common/lib/types';
-import { NotificationStatus } from '@codesandbox/notifications/lib/state';
-import { Action, AsyncAction } from 'app/overmind';
+import { Context } from 'app/overmind';
 import { MAX_FILE_SIZE } from 'codesandbox-import-utils/lib/is-text';
 import denormalize from 'codesandbox-import-utils/lib/utils/files/denormalize';
 import { chunk } from 'lodash-es';
+import { Directory, Sandbox } from '@codesandbox/common/lib/types';
+import { getDirectoryPath } from '@codesandbox/common/lib/sandbox/modules';
 
-export const recoverFiles: Action = ({ effects, actions, state }) => {
+function b64DecodeUnicode(file: string) {
+  // Adding this fixes uploading JSON files with non UTF8-characters
+  // https://stackoverflow.com/a/30106551
+  return decodeURIComponent(
+    atob(file)
+      .split('')
+      .map(char => '%' + ('00' + char.charCodeAt(0).toString(16)).slice(-2))
+      .join('')
+  );
+}
+
+export const recoverFiles = ({ effects, state }: Context) => {
   const sandbox = state.editor.currentSandbox;
 
   if (!sandbox) {
@@ -16,66 +27,36 @@ export const recoverFiles: Action = ({ effects, actions, state }) => {
     sandbox.id,
     sandbox.modules
   );
-  effects.moduleRecover.clearSandbox(sandbox.id);
 
-  const recoveredList = recoverList
-    .map(item => {
-      if (!item) {
-        return false;
-      }
-      const { recoverData, module } = item;
+  const recoveredList = recoverList.reduce((aggr, item) => {
+    if (!item) {
+      return aggr;
+    }
+    const { recoverData, module } = item;
 
-      if (module.code === recoverData.savedCode) {
-        const titleA = `saved '${module.title}'`;
-        const titleB = `recovered '${module.title}'`;
-        const tab: DiffTab = {
-          type: TabType.DIFF,
-          codeA: module.code || '',
-          codeB: recoverData.code || '',
-          titleA,
-          titleB,
-          fileTitle: module.title,
-          id: `${titleA} - ${titleB}`,
-        };
-        state.editor.tabs.push(tab);
+    if (module.code !== recoverData.code) {
+      return aggr.concat(item);
+    }
 
-        actions.editor.codeChanged({
-          code: recoverData.code,
-          moduleShortid: module.shortid,
-        });
+    return aggr;
+  }, [] as typeof recoverList);
 
-        return true;
-      }
-
-      return false;
-    })
-    .filter(Boolean);
-  const numRecoveredFiles = recoveredList.length;
-
-  if (numRecoveredFiles > 0) {
-    effects.analytics.track('Files Recovered', {
-      fileCount: numRecoveredFiles,
-    });
-
-    effects.notificationToast.add({
-      message: `We recovered ${numRecoveredFiles} unsaved ${
-        numRecoveredFiles > 1 ? 'files' : 'file'
-      } from a previous session`,
-      status: NotificationStatus.NOTICE,
-    });
+  if (recoveredList.length > 0) {
+    state.editor.recoveredFiles = recoveredList;
+    state.currentModal = 'recoveredFiles';
   }
 };
 
-export const uploadFiles: AsyncAction<
+export const uploadFiles = async (
+  { effects }: Context,
   {
+    files,
+    directoryShortid,
+  }: {
     files: { [k: string]: { dataURI: string; type: string } };
     directoryShortid: string;
-  },
-  {
-    modules: any;
-    directories: any;
   }
-> = async ({ effects }, { files, directoryShortid }) => {
+) => {
   const parsedFiles: {
     [key: string]: { isBinary: boolean; content: string };
   } = {};
@@ -83,6 +64,9 @@ export const uploadFiles: AsyncAction<
   // upload requests
   const filePaths = Object.keys(files);
   const chunkedFilePaths = chunk(filePaths, 5);
+
+  const textExtensions = (await import('textextensions/source/index.json'))
+    .default;
 
   // We traverse all files and upload them when necessary, then add them to the
   // parsedFiles object
@@ -93,25 +77,18 @@ export const uploadFiles: AsyncAction<
         const file = files[filePath];
         const { dataURI } = file;
 
+        const extension = filePath.split('.').pop();
+
         if (
-          (/\.(j|t)sx?$/.test(filePath) ||
-            /\.coffee$/.test(filePath) ||
-            /\.json$/.test(filePath) ||
-            /\.html$/.test(filePath) ||
-            /\.vue$/.test(filePath) ||
-            /\.styl$/.test(filePath) ||
-            /\.(le|sc|sa)ss$/.test(filePath) ||
-            /\.haml$/.test(filePath) ||
-            /\.pug$/.test(filePath) ||
-            /\.svg$/.test(filePath) ||
-            /\.md$/.test(filePath) ||
-            /\.svelte$/.test(filePath) ||
+          ((extension && textExtensions.includes(extension)) ||
             file.type.startsWith('text/') ||
             file.type === 'application/json') &&
           dataURI.length < MAX_FILE_SIZE
         ) {
           const text =
-            dataURI !== 'data:' ? atob(dataURI.replace(/^.*base64,/, '')) : '';
+            dataURI !== 'data:'
+              ? b64DecodeUnicode(dataURI.replace(/^.*base64,/, ''))
+              : '';
           parsedFiles[filePath] = {
             content: text,
             isBinary: false,
@@ -166,4 +143,45 @@ export const uploadFiles: AsyncAction<
     modules: relativeModules,
     directories: relativeDirectories,
   };
+};
+
+export const renameDirectoryInState = (
+  { state, effects }: Context,
+  {
+    title,
+    directory,
+    sandbox,
+  }: {
+    title: string;
+    directory: Directory;
+    sandbox: Sandbox;
+  }
+) => {
+  const oldPath = directory.path;
+  directory.title = title;
+  const newPath = getDirectoryPath(
+    sandbox.modules,
+    sandbox.directories,
+    directory.id
+  );
+  directory.path = newPath;
+
+  effects.vscode.sandboxFsSync.rename(
+    state.editor.modulesByPath,
+    oldPath!,
+    directory.path
+  );
+
+  if (oldPath) {
+    sandbox.modules.forEach(m => {
+      if (m.path && m.path.startsWith(oldPath + '/')) {
+        m.path = m.path.replace(oldPath, newPath);
+      }
+    });
+    sandbox.directories.forEach(d => {
+      if (d.path && d.path.startsWith(oldPath + '/')) {
+        d.path = d.path.replace(oldPath, newPath);
+      }
+    });
+  }
 };

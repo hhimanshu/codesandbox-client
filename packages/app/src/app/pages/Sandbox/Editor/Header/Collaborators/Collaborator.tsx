@@ -5,7 +5,7 @@ import Tooltip from '@codesandbox/common/lib/components/Tooltip';
 import { Stack, Text, Menu, Icon } from '@codesandbox/components';
 import css from '@styled-system/css';
 import { Authorization } from 'app/graphql/types';
-import { useOvermind } from 'app/overmind';
+import { useAppState, useActions } from 'app/overmind';
 import { formatDistanceToNow } from 'date-fns';
 import React from 'react';
 
@@ -112,12 +112,10 @@ export const CollaboratorItem = ({
 
 interface ICollaboratorProps {
   authorization: Authorization;
-  userId: string;
   username: string;
   lastSeenAt: string | null;
   avatarUrl: string;
   isViewingNow: boolean;
-
   readOnly?: boolean;
   warning?: string;
 }
@@ -131,7 +129,8 @@ export const Collaborator = ({
   isViewingNow,
   warning,
 }: ICollaboratorProps) => {
-  const { actions, state } = useOvermind();
+  const state = useAppState();
+  const actions = useActions();
 
   const updateAuthorization = (value: string) => {
     if (value === 'remove') {
@@ -177,7 +176,8 @@ interface IInvitationProps {
 }
 
 export const Invitation = ({ id, email, authorization }: IInvitationProps) => {
-  const { actions, state } = useOvermind();
+  const state = useAppState();
+  const actions = useActions();
 
   const updateAuthorization = (value: string) => {
     // We have to do something here
@@ -229,7 +229,8 @@ interface ILinkPermissionProps {
 }
 
 export const LinkPermissions = ({ readOnly }: ILinkPermissionProps) => {
-  const { state, actions } = useOvermind();
+  const state = useAppState();
+  const actions = useActions();
   const { privacy } = state.editor.currentSandbox;
   const isPatron = state.isPatron;
 

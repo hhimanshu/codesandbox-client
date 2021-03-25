@@ -1,19 +1,14 @@
+import { Text } from '@codesandbox/components';
 import React, { FunctionComponent } from 'react';
+import { useAppState, useActions } from 'app/overmind';
 
-import { useOvermind } from 'app/overmind';
+import { Rule } from '../../elements';
 
-import { Rule, SubDescription } from '../../elements';
-import { BigTitle, PreferenceText } from './elements';
+import { PreferenceText } from './elements';
 
 export const EditorTheme: FunctionComponent = () => {
-  const {
-    actions: {
-      preferences: { settingChanged },
-    },
-    state: {
-      preferences: { settings },
-    },
-  } = useOvermind();
+  const { settings } = useAppState().preferences;
+  const { settingChanged } = useActions().preferences;
 
   const bindValue = (name: string, setUndefined?: boolean) => ({
     setValue: value => settingChanged({ name, value }),
@@ -22,26 +17,24 @@ export const EditorTheme: FunctionComponent = () => {
 
   return (
     <div>
-      <BigTitle>Editor Theme</BigTitle>
+      <Text block marginBottom={2} marginTop={8} size={3}>
+        Editor Theme
+      </Text>
 
-      <SubDescription>
+      <Text block size={3} variant="muted">
         You can select your editor theme by selecting File {'->'} Preferences{' '}
         {'->'} Color Theme in the menu bar.
-      </SubDescription>
+      </Text>
 
       <Rule />
 
-      <SubDescription style={{ marginBottom: '1rem' }}>
+      <Text block marginBottom={2} size={3}>
         Custom VSCode Theme
-      </SubDescription>
+      </Text>
 
-      <SubDescription style={{ marginBottom: '1rem' }}>
-        After changing this setting you
-        {"'"}
-        ll have to reload the browser and select {'"'}
-        Custom
-        {'"'} as your color theme.
-      </SubDescription>
+      <Text block marginBottom={4} size={3} variant="muted">
+        {`After changing this setting you'll have to reload the browser and select 'Custom' as your color theme.`}
+      </Text>
 
       <PreferenceText
         block
@@ -52,6 +45,7 @@ export const EditorTheme: FunctionComponent = () => {
 3. Enter: '> Developer: Generate Color Scheme From Current Settings'
 4. Copy the contents and paste them here!`}
         rows={7}
+        style={{ minHeight: 130 }}
         {...bindValue('manualCustomVSCodeTheme', true)}
       />
     </div>

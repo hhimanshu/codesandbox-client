@@ -1,36 +1,33 @@
-import React from 'react';
-
 import {
-  Element,
+  Button,
   Collapsible,
+  Element,
   Stack,
   Text,
-  Button,
 } from '@codesandbox/components';
-import { useOvermind } from 'app/overmind';
+import React, { FunctionComponent } from 'react';
 
-export const NotLoggedIn = () => {
-  const {
-    actions: { signInClicked },
-  } = useOvermind();
+import { useActions } from 'app/overmind';
+
+export const NotLoggedIn: FunctionComponent = () => {
+  const { toggleSignInModal } = useActions();
 
   return (
-    <Collapsible title="Deployment" defaultOpen>
+    <Collapsible defaultOpen title="Deployment">
       <Element paddingX={2}>
         <Stack direction="vertical" gap={2} marginBottom={6}>
-          <Text size={2} variant="muted" block>
+          <Text block size={2} variant="muted">
             You can deploy a production version of your sandbox using one of our
-            supported providers - Netlify or ZEIT.
+            supported providers - Netlify or Vercel.
           </Text>
-          <Text size={2} variant="muted" block>
+
+          <Text block size={2} variant="muted">
             You need to be signed in to deploy this sandbox.
           </Text>
         </Stack>
-        <Button
-          variant="primary"
-          onClick={() => signInClicked({ useExtraScopes: false })}
-        >
-          Sign in with GitHub
+
+        <Button onClick={() => toggleSignInModal()} variant="primary">
+          Sign in
         </Button>
       </Element>
     </Collapsible>

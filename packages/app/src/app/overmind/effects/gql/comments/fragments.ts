@@ -1,4 +1,37 @@
-import gql from 'graphql-tag';
+import { gql } from 'overmind-graphql';
+
+export const codeReferenceMetadataFragment = gql`
+  fragment CodeReferenceMetadata on CodeReferenceMetadata {
+    anchor
+    code
+    head
+    path
+  }
+`;
+
+export const userReferenceMetadataFragment = gql`
+  fragment UserReferenceMetadata on UserReferenceMetadata {
+    username
+    userId
+  }
+`;
+
+export const imageReferenceMetadataFragment = gql`
+  fragment ImageReferenceMetadata on ImageReferenceMetadata {
+    fileName
+  }
+`;
+
+export const previewReferenceMetadataFragment = gql`
+  fragment PreviewReferenceMetadata on PreviewReferenceMetadata {
+    width
+    height
+    x
+    y
+    screenshotUrl
+    userAgent
+  }
+`;
 
 export const commentFragment = gql`
   fragment Comment on Comment {
@@ -7,14 +40,30 @@ export const commentFragment = gql`
     insertedAt
     updatedAt
     isResolved
-    references {
+    anchorReference {
       id
       metadata {
         ... on CodeReferenceMetadata {
-          anchor
-          code
-          head
-          path
+          ...CodeReferenceMetadata
+        }
+        ... on PreviewReferenceMetadata {
+          ...PreviewReferenceMetadata
+        }
+      }
+      resource
+      type
+    }
+    references {
+      id
+      metadata {
+        ... on UserReferenceMetadata {
+          ...UserReferenceMetadata
+        }
+        ... on CodeReferenceMetadata {
+          ...CodeReferenceMetadata
+        }
+        ... on ImageReferenceMetadata {
+          ...ImageReferenceMetadata
         }
       }
       resource
@@ -29,10 +78,12 @@ export const commentFragment = gql`
     parentComment {
       id
     }
-    comments {
-      id
-    }
+    replyCount
   }
+  ${codeReferenceMetadataFragment}
+  ${userReferenceMetadataFragment}
+  ${imageReferenceMetadataFragment}
+  ${previewReferenceMetadataFragment}
 `;
 
 export const commentWithRepliesFragment = gql`
@@ -42,14 +93,30 @@ export const commentWithRepliesFragment = gql`
     insertedAt
     updatedAt
     isResolved
-    references {
+    anchorReference {
       id
       metadata {
         ... on CodeReferenceMetadata {
-          anchor
-          code
-          head
-          path
+          ...CodeReferenceMetadata
+        }
+        ... on PreviewReferenceMetadata {
+          ...PreviewReferenceMetadata
+        }
+      }
+      resource
+      type
+    }
+    references {
+      id
+      metadata {
+        ... on UserReferenceMetadata {
+          ...UserReferenceMetadata
+        }
+        ... on CodeReferenceMetadata {
+          ...CodeReferenceMetadata
+        }
+        ... on ImageReferenceMetadata {
+          ...ImageReferenceMetadata
         }
       }
       resource
@@ -64,9 +131,14 @@ export const commentWithRepliesFragment = gql`
     parentComment {
       id
     }
+    replyCount
     comments {
       ...Comment
     }
   }
   ${commentFragment}
+  ${codeReferenceMetadataFragment}
+  ${userReferenceMetadataFragment}
+  ${imageReferenceMetadataFragment}
+  ${previewReferenceMetadataFragment}
 `;

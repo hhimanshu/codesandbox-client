@@ -4,14 +4,14 @@ import { sandboxUrl } from '@codesandbox/common/lib/utils/url-generator';
 import getTemplateDefinition, {
   TemplateType,
 } from '@codesandbox/common/lib/templates';
-import { useOvermind } from 'app/overmind';
-import { useKey } from 'react-use';
+import { useAppState, useActions } from 'app/overmind';
+import useKey from 'react-use/lib/useKey';
 import { isMac } from '@codesandbox/common/lib/utils/platform';
 import { getSandboxName } from '@codesandbox/common/lib/utils/get-sandbox-name';
 import history from 'app/utils/history';
 import MdEditIcon from 'react-icons/lib/md/edit';
 
-import Tooltip from '@codesandbox/common/lib/components/Tooltip';
+import { Tooltip } from '@codesandbox/components';
 import track from '@codesandbox/common/lib/utils/analytics';
 import { SandboxCard } from '../SandboxCard';
 import { SubHeader, Grid } from '../elements';
@@ -29,6 +29,7 @@ export interface ITemplateListProps {
   forkOnOpen?: boolean;
   columnCount?: number;
   showSecondaryShortcuts?: boolean;
+  collectionId?: string;
 }
 
 const MODIFIER_KEY = isMac ? 'Ctrl' : '⇧';
@@ -46,8 +47,10 @@ export const TemplateList = ({
   forkOnOpen,
   showSecondaryShortcuts,
   columnCount = 2,
+  collectionId,
 }: ITemplateListProps) => {
-  const { actions, state } = useOvermind();
+  const state = useAppState();
+  const actions = useActions();
   const [focusedTemplateIndex, setFocusedTemplate] = React.useState(0);
   const lastMouseMoveEventAt = React.useRef<number>(Date.now());
 
@@ -62,9 +65,13 @@ export const TemplateList = ({
     const cannotFork = templateDefinition.isServer && !state.isLoggedIn;
 
     if (forkOnOpen && !cannotFork) {
+      actions.modals.newSandboxModal.close();
       actions.editor.forkExternalSandbox({
         sandboxId: sandbox.id,
         openInNewWindow,
+        body: {
+          collectionId,
+        },
       });
     } else {
       history.push(sandboxUrl(sandbox));
@@ -154,6 +161,9 @@ export const TemplateList = ({
   useKey(
     'ArrowRight',
     evt => {
+      if ((evt.target as HTMLInputElement).id === 'filter-templates') {
+        return;
+      }
       evt.preventDefault();
       safeSetFocusedTemplate(i => i + 1);
     },
@@ -164,6 +174,9 @@ export const TemplateList = ({
   useKey(
     'ArrowLeft',
     evt => {
+      if ((evt.target as HTMLInputElement).id === 'filter-templates') {
+        return;
+      }
       evt.preventDefault();
       safeSetFocusedTemplate(i => i - 1);
     },
@@ -174,6 +187,9 @@ export const TemplateList = ({
   useKey(
     'ArrowDown',
     evt => {
+      if ((evt.target as HTMLInputElement).id === 'filter-templates') {
+        return;
+      }
       evt.preventDefault();
       const { templateInfo, offset } = getTemplateInfoByIndex(
         focusedTemplateIndex
@@ -238,6 +254,9 @@ export const TemplateList = ({
   useKey(
     'ArrowUp',
     evt => {
+      if ((evt.target as HTMLInputElement).id === 'filter-templates') {
+        return;
+      }
       evt.preventDefault();
       const { templateInfo, offset } = getTemplateInfoByIndex(
         focusedTemplateIndex
@@ -342,19 +361,22 @@ export const TemplateList = ({
           return (
             <TemplateInfoContainer key={key}>
               {title !== undefined && <SubHeader>{title}</SubHeader>}
-              <Grid columnCount={columnCount}>
+              <Grid
+                columnCount={window.screen.availWidth < 600 ? 1 : columnCount}
+              >
                 {templates.map((template: TemplateFragment, i) => {
                   const index = offset + i;
                   const focused = focusedTemplateIndex === offset + i;
-                  const owner =
-                    template.sandbox.collection?.team?.name ||
-                    template.sandbox.author?.username;
-
-                  const shortKey = showSecondaryShortcuts
-                    ? index < 9
-                      ? `${MODIFIER_KEY}+${index + 1}`
-                      : ''
+                  const owner = template.sandbox
+                    ? template.sandbox.collection?.team?.name ||
+                      template.sandbox.author?.username
                     : '';
+                  let shortKey = '';
+
+                  if (showSecondaryShortcuts) {
+                    shortKey = index < 9 ? `${MODIFIER_KEY}+${index + 1}` : '';
+                  }
+
                   const detailText = focused ? '↵' : shortKey;
 
                   return (
@@ -404,7 +426,7 @@ export const TemplateList = ({
                       DetailComponent={
                         isOwned
                           ? () => (
-                              <Tooltip content="Edit Template">
+                              <Tooltip label="Edit Template">
                                 <EditIcon
                                   onClick={evt => {
                                     evt.stopPropagation();

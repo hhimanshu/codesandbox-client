@@ -1,5 +1,8 @@
+import JSON5 from 'json5';
 import codeSandboxTheme from '@codesandbox/common/lib/themes/codesandbox.json';
 import codeSandboxBlackTheme from '@codesandbox/common/lib/themes/codesandbox-black';
+import { notificationState } from '@codesandbox/common/lib/utils/notifications';
+import { NotificationStatus } from '@codesandbox/notifications';
 
 export function initializeThemeCache() {
   try {
@@ -32,11 +35,14 @@ export function initializeSettings() {
         {
           'editor.formatOnSave': true,
           'editor.fontSize': 15,
-          'editor.fontFamily': "dm, Menlo, Monaco, 'Courier New', monospace",
+          'editor.fontFamily':
+            "MonoLisa, Menlo, Monaco, 'Courier New', monospace",
           'editor.tabSize': 2,
           'editor.minimap.enabled': false,
           'workbench.editor.openSideBySideDirection': 'down',
           'svelte.plugin.typescript.diagnostics.enable': false,
+          'typescript.locale': 'en',
+          'relativeLineHeight.value': 1.6,
         },
         null,
         2
@@ -52,24 +58,54 @@ export function initializeSettings() {
     // and applies them 100ms later. There is no check for cursor or anything else.
     // This doesn't happen in VSCode Live Share itself, because there they share the LSP between
     // multiple users. This way the request is not duplicated among multiple users.
-    const settings = JSON.parse(
+    const settings = JSON5.parse(
       fs.readFileSync('/vscode/settings.json').toString()
     );
-    settings['javascript.autoClosingTags'] = false;
-    settings['typescript.autoClosingTags'] = false;
-    settings['html.autoClosingTags'] = false;
-    settings['typescript.tsserver.useSeparateSyntaxServer'] = false;
+
+    let settingsChanged = false;
+    const changeIfNeeded = (field: string, value: unknown) => {
+      if (settings[field] !== value) {
+        settings[field] = value;
+        return true;
+      }
+      return settingsChanged || false;
+    };
+
+    if (
+      settings['editor.fontFamily'].startsWith('dm') ||
+      settings['editor.fontFamily'].startsWith("'dm'")
+    ) {
+      settingsChanged = changeIfNeeded(
+        'editor.fontFamily',
+        "MonoLisa, Menlo, Monaco, 'Courier New', monospace"
+      );
+    }
+
+    settingsChanged = changeIfNeeded('javascript.autoClosingTags', false);
+    settingsChanged = changeIfNeeded('typescript.autoClosingTags', false);
+    settingsChanged = changeIfNeeded('html.autoClosingTags', false);
+    settingsChanged = changeIfNeeded('typescript.locale', 'en');
+    settingsChanged = changeIfNeeded(
+      'typescript.tsserver.useSeparateSyntaxServer',
+      false
+    );
 
     if (!settings['workbench.colorTheme']) {
       // if you have not changed the theme ever,
       // we set codesandbox black as the theme for you
-      settings['workbench.colorTheme'] = 'CodeSandbox Black';
+
+      settingsChanged = changeIfNeeded(
+        'workbench.colorTheme',
+        'CodeSandbox Black'
+      );
     }
 
-    fs.writeFileSync(
-      '/vscode/settings.json',
-      JSON.stringify(settings, null, 2)
-    );
+    if (settingsChanged) {
+      fs.writeFileSync(
+        '/vscode/settings.json',
+        JSON5.stringify(settings, { quote: '"', space: 2, replacer: null })
+      );
+    }
   } catch (e) {
     console.warn(e);
   }
@@ -91,6 +127,13 @@ export function initializeCodeSandboxTheme() {
 }
 
 export function installCustomTheme(id: string, name: string, theme: string) {
+  let uiTheme: string;
+  try {
+    uiTheme = JSON5.parse(theme).type;
+  } catch {
+    uiTheme = 'dark';
+  }
+
   const packageJSON = {
     name: id,
     displayName: name,
@@ -100,7 +143,7 @@ export function installCustomTheme(id: string, name: string, theme: string) {
     license: 'SEE LICENSE IN LICENSE.md',
     repository: {
       type: 'git',
-      url: 'https://github.com/sdras/night-owl-vscode-theme',
+      url: 'https://github.com/codesandbox/codesandbox-client',
     },
     keywords: [],
     scripts: {
@@ -108,7 +151,7 @@ export function installCustomTheme(id: string, name: string, theme: string) {
     },
     galleryBanner: {
       color: '#061526',
-      theme: 'dark',
+      theme: uiTheme,
     },
     engines: {
       vscode: '^1.17.0',
@@ -118,7 +161,7 @@ export function installCustomTheme(id: string, name: string, theme: string) {
       themes: [
         {
           label: name,
-          uiTheme: 'vs-dark',
+          uiTheme: uiTheme === 'dark' ? 'vs-dark' : 'vs',
           path: './themes/custom-color-theme.json',
         },
       ],
@@ -154,6 +197,32 @@ export function initializeCustomTheme() {
   const customTheme = localStorage.getItem('settings.manualCustomVSCodeTheme');
 
   if (customTheme) {
-    installCustomTheme('custom', 'Custom Theme', customTheme);
+    try {
+      installCustomTheme('custom', 'Custom Theme', JSON.parse(customTheme));
+    } catch (e) {
+      notificationState.addNotification({
+        title: 'Something went wrong while installing the custom extension',
+        message: e.message,
+        status: NotificationStatus.ERROR,
+        actions: {
+          primary: {
+            label: 'Clear Custom Theme',
+            run: () => {
+              localStorage.removeItem('settings.manualCustomVSCodeTheme');
+            },
+          },
+        },
+      });
+    }
+  }
+}
+
+export function initializeSnippetDirectory() {
+  const fs = window.BrowserFS.BFSRequire('fs');
+
+  const folder = `/vscode/snippets`;
+  const folderExists = fs.existsSync(folder);
+  if (!folderExists) {
+    fs.mkdirSync(folder);
   }
 }

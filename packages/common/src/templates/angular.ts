@@ -23,10 +23,12 @@ function getAngularJSONEntries(parsed) {
   if (parsed) {
     const { defaultProject } = parsed;
     const project = parsed.projects[defaultProject];
-    const { build } = project.architect;
 
-    if (build.options.main) {
-      entries.push(absolute(join(project.root, build.options.main)));
+    if (project && project.architect) {
+      const { build } = project.architect;
+      if (build.options.main) {
+        entries.push(absolute(join(project.root, build.options.main)));
+      }
     }
   }
 
@@ -48,10 +50,17 @@ function getAngularJSONHTMLEntry(parsed) {
   if (parsed) {
     const { defaultProject } = parsed;
     const project = parsed.projects[defaultProject];
-    const { build } = project.architect;
 
-    if (build && project.root != null && build.options && build.options.index) {
-      return [absolute(join(project.root, build.options.index))];
+    if (project && project.architect) {
+      const { build } = project.architect;
+      if (
+        build &&
+        project.root != null &&
+        build.options &&
+        build.options.index
+      ) {
+        return [absolute(join(project.root, build.options.index))];
+      }
     }
   }
 
@@ -114,8 +123,9 @@ export default new AngularTemplate(
     extraConfigurations: {
       '/.angular-cli.json': configurations.angularCli,
       '/angular.json': configurations.angularJSON,
+      '/tsconfig.json': configurations.tsconfig,
     },
-    netlify: false,
+    staticDeployment: false,
     isTypescript: true,
     distDir: 'dist',
     showOnHomePage: true,

@@ -6,13 +6,13 @@ import {
   preact,
   react,
   reactTs,
-  svelte,
   vue,
 } from '@codesandbox/common/lib/templates/index';
 import { Directory, Module, Sandbox } from '@codesandbox/common/lib/types';
 import { saveAs } from 'file-saver';
 import ignore from 'ignore';
 import JSZip from 'jszip';
+import { injectExternalResources } from 'app/utils/inject-resources-for-export';
 
 export const BLOB_ID = 'blob-url://';
 
@@ -215,7 +215,16 @@ export async function createZip(
     ignorer.add(gitIgnore ? gitIgnore.code : '');
   }
 
-  const filteredModules = modules.filter(module => {
+  let modifiedModules = modules;
+
+  if (sandbox.externalResources?.length > 0) {
+    modifiedModules = injectExternalResources(
+      modules,
+      sandbox.externalResources
+    );
+  }
+
+  const filteredModules = modifiedModules.filter(module => {
     // Relative path
     const path = getModulePath(modules, directories, module.id).substring(1);
     return !ignorer.ignores(path);
@@ -282,12 +291,6 @@ export async function createZip(
   } else if (sandbox.template === preact.name) {
     promise = import(
       /* webpackChunkName: 'preact-zip' */ './preact-cli'
-    ).then(generator =>
-      generator.default(zip, sandbox, filteredModules, directories)
-    );
-  } else if (sandbox.template === svelte.name) {
-    promise = import(
-      /* webpackChunkName: 'svelte-zip' */ './svelte'
     ).then(generator =>
       generator.default(zip, sandbox, filteredModules, directories)
     );

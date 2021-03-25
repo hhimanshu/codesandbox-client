@@ -9,7 +9,6 @@ export default {
 
 const Wrapper = ({ children }) => <div style={{ width: 400 }}>{children}</div>;
 
-// replace the text inside with Text variants when available
 export const Placeholder = () => (
   <Wrapper>
     <Textarea placeholder="Your name" />
@@ -38,6 +37,16 @@ export const autoResize = () => (
   </Wrapper>
 );
 
+export const autoResizeWithInitialHeight = () => (
+  <Wrapper>
+    <Textarea
+      autosize
+      placeholder="Write a lot of lines here"
+      style={{ minHeight: 32 }}
+    />
+  </Wrapper>
+);
+
 export const Controlled = () => {
   const [value, setValue] = React.useState('');
   return (
@@ -57,3 +66,9 @@ export const Controlled = () => {
     </>
   );
 };
+
+export const DefaultValue = () => (
+  <Wrapper>
+    <Textarea placeholder="Your name" defaultValue="Default value" />
+  </Wrapper>
+);

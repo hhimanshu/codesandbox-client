@@ -1,16 +1,14 @@
-import { ResolveState } from 'overmind';
-import { Reaction, Config } from '..';
+import { IReaction } from 'overmind';
+import { Context } from '..';
 
 export default (() => {
-  let _reaction: Reaction;
+  let _reaction: IReaction<Context>;
 
   return {
-    initialize(reaction: Reaction) {
+    initialize(reaction: IReaction<Context>) {
       _reaction = reaction;
     },
-    waitUntil(
-      test: (state: ResolveState<Config['state']>) => boolean
-    ): Promise<boolean> {
+    waitUntil(test: (state: Context['state']) => boolean): Promise<void> {
       return new Promise(resolve => {
         _reaction(test, bool => {
           if (bool === true) {

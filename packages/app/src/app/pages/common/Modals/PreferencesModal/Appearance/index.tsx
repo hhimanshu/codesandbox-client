@@ -1,13 +1,16 @@
+import { Text } from '@codesandbox/components';
 import React, { FunctionComponent } from 'react';
 
-import { PreferenceContainer, SubContainer, Title } from '../elements';
+import { PreferenceContainer, SubContainer } from '../elements';
 import { VSCodePlaceholder } from '../VSCodePlaceholder';
 
 import { EditorTheme } from './EditorTheme';
 
 export const Appearance: FunctionComponent = () => (
   <div>
-    <Title>Appearance</Title>
+    <Text block marginBottom={6} size={4} weight="bold">
+      Appearance
+    </Text>
 
     <SubContainer>
       <PreferenceContainer>

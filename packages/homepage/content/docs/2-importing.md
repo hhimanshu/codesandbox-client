@@ -19,20 +19,43 @@ and begin creating your own sandbox.
 
 ## Import from GitHub
 
-You can import a GitHub repository in to CodeSandbox from the
+You can import a GitHub repository in to CodeSandbox using our
 [import wizard](https://codesandbox.io/s/github) and pasting the URL to your
-GitHub repository. Note that we just take the last part of the url (everything
-after github.com) and append it after codesandbox.io/s/github/. We support
-custom branches and subdirectories. Here is an example URL:
-[https://codesandbox.io/s/github/reactjs/redux/tree/master/examples/todomvc](https://codesandbox.io/s/github/reactjs/redux/tree/master/examples/todomvc).
+GitHub repository. We support custom branches and subdirectories.
 
 The imported repository will always stay up to date with your latest commits.
 This means that any change to the GitHub repository will be reflected
-immediately to the sandbox.
+immediately in the sandbox.
+
+### Using GitHubBox.com
+
+An easy way to import a repo to CodeSandbox via URL is with GitHubBox.com.
+Append 'box' to your github.com URL in between 'hub' and '.com' and it will
+redirect to CodeSandbox.
+
+Here's an example:
+
+Change the GitHub URL:
+https://github.com/reduxjs/redux/tree/master/examples/todomvc.
+
+To: https://githubbox.com/reduxjs/redux/tree/master/examples/todomvc.
+
+The result is we take the last part of the url (everything after github.com) and
+use it in our importer at codesandbox.io/s/github/, adding the repo to
+CodeSandbox.
+
+### Using a Browser Extension
+
+We have browser extensions for
+[Chrome](https://chrome.google.com/webstore/detail/open-in-codesandbox/hdidglkcgdolpoijdckmafdnddjoglia)
+and [Firefox](https://addons.mozilla.org/en-GB/firefox/addon/codesandbox/),
+which add an 'Open in CodeSandbox' button to GitHub repo pages. This makes it
+easy to import existing projects from GitHub in to CodeSandbox.
 
 ### Setting inference
 
-We infer sandbox settings based on several files in a repository.
+When importting, we infer sandbox settings based on several files in a
+repository.
 
 | Sandbox Setting | Inferred from                                                                                                                                         |
 | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -41,19 +64,15 @@ We infer sandbox settings based on several files in a repository.
 | Tags            | `keywords` field in `package.json`                                                                                                                    |
 | Template        | Based on [this](https://github.com/codesandbox-app/codesandbox-importers/blob/master/packages/import-utils/src/create-sandbox/templates.ts#L63) logic |
 
-Additionally, you may specify a `template` property in your
-`./sandbox.config.json` file to override the detected template.
+If the correct template isn't automatically being used when importing, then you
+may specify a `template` property in your `./sandbox.config.json` file to
+override the detected template.
 
 ```json
 {
   "template": "node"
 }
 ```
-
-### Source
-
-You can find the source of our git extractor
-[here](https://github.com/codesandbox-app/git-extractor).
 
 ## Import Local projects via CLI
 
@@ -83,12 +102,12 @@ code examples. You can call the endpoint
 We currently support three extra parameters. The query accepts the same options
 as the [embed options](https://codesandbox.io/docs/embedding/#embed-options).
 
-| Query Parameter | Description                                                                          | Example Input               |
-| --------------- | ------------------------------------------------------------------------------------ | --------------------------- |
-| `parameters`    | Parameters used to define how the sandbox should be created.                         | Example below               |
-| `query`         | The query that will be used in the redirect url.                                     | `view=preview&runonclick=1` |
-| `embed`         | Whether we should redirect to the embed instead of the editor.                       | `1`                         |
-| `json`          | Instead of redirecting we will send a JSON reponse with `{"sandbox_id": sandboxId}`. | `1`                         |
+| Query Parameter | Description                                                                           | Example Input               |
+| --------------- | ------------------------------------------------------------------------------------- | --------------------------- |
+| `parameters`    | Parameters used to define how the sandbox should be created.                          | Example below               |
+| `query`         | The query that will be used in the redirect url.                                      | `view=preview&runonclick=1` |
+| `embed`         | Whether we should redirect to the embed instead of the editor.                        | `1`                         |
+| `json`          | Instead of redirecting we will send a JSON response with `{"sandbox_id": sandboxId}`. | `1`                         |
 
 ### How it works
 
@@ -110,6 +129,43 @@ will be in the sandbox, an example body would be:
   }
 }
 ```
+
+#### Binary Files
+
+You can import binary files by setting `isBinary` to `true` and `content` as a
+URL to the file hosted externally. For example:
+
+```json
+{
+  "isBinary": true,
+  "content": "https://..."
+}
+```
+
+#### Folders
+
+You can create folders by naming the file with a `/` in it's name, allowing to
+structure your application how you want:
+
+```json
+{
+  "files": {
+    "src/index.js": {
+      "content": "console.log('hello!')",
+      "isBinary": false
+    },
+    "package.json": {
+      "content": {
+        "dependencies": {}
+      }
+    }
+  }
+}
+```
+
+This will create a file called `index.js` in your `src` folder.
+
+#### Package.json
 
 Every request **requires** a `package.json`. This file can either be a string or
 an object. We determine all information of the sandbox from the files, like we
@@ -142,7 +198,7 @@ const url = `https://codesandbox.io/api/v1/sandboxes/define?parameters=${paramet
 
 #### Example Sandbox
 
-<iframe src="https://codesandbox.io/embed/6yznjvl7nw?editorsize=50&fontsize=14&hidenavigation=1&runonclick=1" style="width:100%; height:500px; border:0; border-radius: 4px; overflow:hidden;" sandbox="allow-modals allow-forms allow-popups allow-scripts allow-same-origin"></iframe>
+<iframe src="https://codesandbox.io/embed/6yznjvl7nw?editorsize=50&fontsize=14&hidenavigation=1&runonclick=1" style="width:100%; height:500px; border:0; border-radius: 4px; overflow:hidden;" allow="accelerometer; ambient-light-sensor; camera; encrypted-media; geolocation; gyroscope; hid; microphone; midi; payment; usb; vr; xr-spatial-tracking" sandbox="allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts"></iframe>
 
 ### POST Form
 
@@ -151,7 +207,7 @@ show a form. With a POST request you can create bigger sandboxes.
 
 #### Example Sandbox
 
-<iframe src="https://codesandbox.io/embed/qzlp7nw34q?editorsize=70&fontsize=14&hidenavigation=1&runonclick=1" style="width:100%; height:500px; border:0; border-radius: 4px; overflow:hidden;" sandbox="allow-modals allow-forms allow-popups allow-scripts allow-same-origin"></iframe>
+<iframe src="https://codesandbox.io/embed/qzlp7nw34q?editorsize=70&fontsize=14&hidenavigation=1&runonclick=1" style="width:100%; height:500px; border:0; border-radius: 4px; overflow:hidden;" allow="accelerometer; ambient-light-sensor; camera; encrypted-media; geolocation; gyroscope; hid; microphone; midi; payment; usb; vr; xr-spatial-tracking" sandbox="allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts"></iframe>
 
 ### Define without render
 
@@ -172,7 +228,7 @@ Both `get` and `post` requests are supported.
 You can also create a sandbox using an XHR request, like using `fetch`. An
 example sandbox of that is here:
 
-<iframe src="https://codesandbox.io/embed/9loovqj5oy?editorsize=70&fontsize=14&hidenavigation=1&runonclick=1" style="width:100%; height:500px; border:0; border-radius: 4px; overflow:hidden;" sandbox="allow-modals allow-forms allow-popups allow-scripts allow-same-origin"></iframe>
+<iframe src="https://codesandbox.io/embed/9loovqj5oy?editorsize=70&fontsize=14&hidenavigation=1&runonclick=1" style="width:100%; height:500px; border:0; border-radius: 4px; overflow:hidden;" allow="accelerometer; ambient-light-sensor; camera; encrypted-media; geolocation; gyroscope; hid; microphone; midi; payment; usb; vr" sandbox="allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts"></iframe>
 
 ## Import Single Components
 

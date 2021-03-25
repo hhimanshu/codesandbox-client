@@ -21,7 +21,7 @@ export const initializePolyfills = () => {
 
 export const loadBrowserFS = () => {
   ctx.importScripts(
-    `${process.env.CODESANDBOX_HOST}/static/browserfs9/browserfs.min.js`
+    `${process.env.CODESANDBOX_HOST}/static/browserfs12/browserfs.min.js`
   );
 };
 
@@ -39,6 +39,7 @@ export const initializeGlobals = () => {
 };
 
 export function initializeAll() {
+  // eslint-disable-next-line no-async-promise-executor
   return new Promise(async resolve => {
     await initializePolyfills();
     loadBrowserFS();

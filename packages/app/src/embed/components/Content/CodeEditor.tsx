@@ -1,5 +1,6 @@
 import Centered from '@codesandbox/common/lib/components/flex/Centered';
 import Margin from '@codesandbox/common/lib/components/spacing/Margin';
+import { withTheme } from 'styled-components';
 import Tooltip from '@codesandbox/common/lib/components/Tooltip';
 import { getModulePath } from '@codesandbox/common/lib/sandbox/modules';
 import getDefinition from '@codesandbox/common/lib/templates';
@@ -11,21 +12,23 @@ import { Icon, Icons } from 'app/components/CodeEditor/elements';
 import { Props } from 'app/components/CodeEditor/types'; // eslint-disable-line
 import { SubTitle } from 'app/components/SubTitle';
 import { Title } from 'app/components/Title';
-import Loadable from 'app/utils/Loadable';
+import { Loadable } from 'app/utils/Loadable';
 import React from 'react';
 import UIIcon from 'react-icons/lib/md/dvr';
+import { ThemeProvider } from '@codesandbox/components';
 
 import { ImageViewer } from './ImageViewer';
 import MonacoDiff from './MonacoDiff';
 
-const CodeMirror = Loadable(() =>
-  import(
-    /* webpackChunkName: 'codemirror-editor' */ 'app/components/CodeEditor/CodeMirror'
-  )
+const CodeMirror = Loadable(
+  () =>
+    import(
+      /* webpackChunkName: 'codemirror-editor' */ 'app/components/CodeEditor/CodeMirror'
+    )
 );
 
-const Monaco = Loadable(() =>
-  import(/* webpackChunkName: 'monaco-editor' */ './Monaco')
+const Monaco = Loadable(
+  () => import(/* webpackChunkName: 'monaco-editor' */ './Monaco')
 );
 
 const getDependencies = (sandbox: Sandbox): { [key: string]: string } => {
@@ -62,7 +65,7 @@ type State = {
   showConfigUI: boolean;
 };
 
-export class CodeEditor extends React.PureComponent<
+export class CodeEditorComponent extends React.PureComponent<
   Props & {
     editor?: 'vscode' | 'monaco' | 'codemirror';
     style?: React.CSSProperties;
@@ -123,12 +126,14 @@ export class CodeEditor extends React.PureComponent<
 
     if (config && getUI(config.type) && this.state.showConfigUI) {
       return (
-        <Configuration
-          {...props}
-          dependencies={dependencies}
-          config={config}
-          toggleConfigUI={this.toggleConfigUI}
-        />
+        <ThemeProvider theme={this.props.theme.vscodeTheme}>
+          <Configuration
+            {...props}
+            dependencies={dependencies}
+            config={config}
+            toggleConfigUI={this.toggleConfigUI}
+          />
+        </ThemeProvider>
       );
     }
 
@@ -198,3 +203,5 @@ export class CodeEditor extends React.PureComponent<
     );
   }
 }
+
+export const CodeEditor = withTheme(CodeEditorComponent);

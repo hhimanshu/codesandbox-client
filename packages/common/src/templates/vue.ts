@@ -12,9 +12,8 @@ class VueTemplate extends Template {
     return entries;
   }
 
-  // eslint-disable-next-line no-unused-vars
-  getHTMLEntries(configurationFiles: ParsedConfigurationFiles): Array<string> {
-    return ['/static/index.html', '/index.html'];
+  getHTMLEntries(): Array<string> {
+    return ['/static/index.html', '/public/index.html', '/index.html'];
   }
 }
 
@@ -28,6 +27,7 @@ export default new VueTemplate(
     showOnHomePage: true,
     extraConfigurations: {
       '/.babelrc': configurations.babelrc,
+      '/tsconfig.json': configurations.tsconfig,
     },
     distDir: 'dist',
     main: true,

@@ -1,12 +1,12 @@
 import dot from 'dot-object';
-import { colors as tokens } from '../design-language/colors';
+import { colors as tokens } from '@codesandbox/components/lib/design-language/colors';
 
 /*
   we use dot to convert objects to vscode dot notation
 
   the object style is better authoring experience, it helps
-  organising the file better, let's us lint the file and find
-  duplicates / classhing styles.
+  organizing the file better, let's us lint the file and find
+  duplicates / clashing styles.
 */
 
 const colors = {
@@ -86,8 +86,8 @@ const colors = {
     activeForeground: tokens.grays[300],
   },
   editorLineNumber: {
-    foreground: tokens.grays[600],
-    activeForeground: tokens.grays[400],
+    foreground: tokens.grays[400],
+    activeForeground: tokens.grays[200],
   },
   editorRuler: {
     foreground: tokens.white,
@@ -115,7 +115,7 @@ const colors = {
   },
   editorWarning: {
     border: tokens.grays[600],
-    foreground: tokens.reds[300],
+    foreground: tokens.yellow,
   },
   editorWhitespace: {
     foreground: tokens.grays[500],

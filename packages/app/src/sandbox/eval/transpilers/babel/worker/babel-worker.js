@@ -1,30 +1,36 @@
 /* eslint-disable global-require, no-console, no-use-before-define */
 import { flatten } from 'lodash-es';
-import codeFrame from 'babel-code-frame';
-import macrosPlugin from 'babel-plugin-macros';
 import refreshBabelPlugin from 'react-refresh/babel';
 import chainingPlugin from '@babel/plugin-proposal-optional-chaining';
 import coalescingPlugin from '@babel/plugin-proposal-nullish-coalescing-operator';
-import * as envPreset from '@babel/preset-env';
 
 import delay from '@codesandbox/common/lib/utils/delay';
 
+import * as resolve from 'resolve';
 import getDependencyName from 'sandbox/eval/utils/get-dependency-name';
 import { join } from '@codesandbox/common/lib/utils/path';
-import dynamicImportPlugin from './plugins/babel-plugin-dynamic-import-node';
+import patchedMacrosPlugin from './utils/macrosPatch';
 import detective from './plugins/babel-plugin-detective';
 import infiniteLoops from './plugins/babel-plugin-transform-prevent-infinite-loops';
 import dynamicCSSModules from './plugins/babel-plugin-dynamic-css-modules';
+import renameImport from './plugins/babel-plugin-rename-imports';
+
+import { BABEL7_VERSION } from '../babel-version';
 
 import { buildWorkerError } from '../../utils/worker-error-handler';
 import getDependencies from './get-require-statements';
 import { downloadFromError, downloadPath } from './dynamic-download';
+import { getModulesFromMainThread } from '../../utils/fs';
+import { remapBabelHack } from './utils/remap-babel-hack';
+import { installErrorMock } from './utils/error-mock';
 
 import { evaluateFromPath, resetCache } from './evaluate';
 import {
   getPrefixedPluginName,
   getPrefixedPresetName,
 } from './get-prefixed-name';
+import { patchedResolve } from './utils/resolvePatch';
+import { loadBabelTypes } from './utils/babelTypes';
 
 let fsInitialized = false;
 let fsLoading = false;
@@ -37,13 +43,28 @@ const { BrowserFS } = self;
 BrowserFS.configure({ fs: 'InMemory' }, () => {});
 
 self.process = {
+  cwd() {
+    return '/';
+  },
   env: { NODE_ENV: 'development', BABEL_ENV: 'development' },
   platform: 'linux',
   argv: [],
   stderr: {},
+  versions: {
+    node: 10,
+  },
 };
+// Trick Babel that we're in a commonjs env
+self.module = { exports: {} };
+const { exports } = self.module;
+self.exports = exports;
+
 // This one is called from the babel transpiler and babel-plugin-macros
 self.require = path => {
+  if (path === 'resolve') {
+    return patchedResolve();
+  }
+
   if (path === 'assert') {
     return require('assert');
   }
@@ -76,6 +97,13 @@ self.require = path => {
   }
 
   const fs = BrowserFS.BFSRequire('fs');
+
+  // This code can be called while Babel is initializing.
+  // When babel is initializing we can't resolve plugins yet.
+  if (!('Babel' in self)) {
+    return undefined;
+  }
+
   return evaluateFromPath(
     fs,
     BrowserFS.BFSRequire,
@@ -86,19 +114,35 @@ self.require = path => {
   );
 };
 
+self.require.resolve = p => resolve.sync(p);
+
 async function initializeBrowserFS() {
   fsLoading = true;
-  return new Promise(resolve => {
+
+  const modules = await getModulesFromMainThread();
+  const tModules = {};
+  modules.forEach(module => {
+    tModules[module.path] = { module };
+  });
+
+  const bfsWrapper = {
+    getTranspiledModules: () => tModules,
+    addModule: () => {},
+    removeModule: () => {},
+    moveModule: () => {},
+    updateModule: () => {},
+  };
+
+  return new Promise(resolvePromise => {
     BrowserFS.configure(
       {
         fs: 'OverlayFS',
         options: {
           writable: { fs: 'InMemory' },
           readable: {
-            fs: 'AsyncMirror',
+            fs: 'CodeSandboxFS',
             options: {
-              sync: { fs: 'InMemory' },
-              async: { fs: 'WorkerFS', options: { worker: self } },
+              manager: bfsWrapper,
             },
           },
         },
@@ -110,7 +154,7 @@ async function initializeBrowserFS() {
         }
         fsLoading = false;
         fsInitialized = true;
-        resolve();
+        resolvePromise();
         // BrowserFS is initialized and ready-to-use!
       }
     );
@@ -123,7 +167,7 @@ async function waitForFs() {
       // We only load the fs when it's needed. The FS is expensive, as we sync all
       // files of the main thread to the worker. We only want to do this if it's really
       // needed.
-      await initializeBrowserFS();
+      await Promise.all([initializeBrowserFS(), loadBabelTypes()]);
     }
     while (!fsInitialized) {
       await delay(50); // eslint-disable-line
@@ -313,6 +357,7 @@ function getCustomConfig(
         },
         presets: ['env', 'react'],
         plugins: [
+          'babel-plugin-csb-rename-import',
           'transform-modules-commonjs',
           'proposal-class-properties',
           '@babel/plugin-transform-runtime',
@@ -324,6 +369,7 @@ function getCustomConfig(
     return {
       presets: ['es2015', 'react', 'stage-0'],
       plugins: [
+        'babel-plugin-csb-rename-import',
         'transform-es2015-modules-commonjs',
         'transform-class-properties',
         [
@@ -349,7 +395,11 @@ function getCustomConfig(
   return {
     ...config,
     plugins: config.plugins
-      ? [...config.plugins, ...codeSandboxPlugins]
+      ? [
+          'babel-plugin-csb-rename-import',
+          ...config.plugins,
+          ...codeSandboxPlugins,
+        ]
       : codeSandboxPlugins,
   };
 }
@@ -362,18 +412,22 @@ async function compile(code, customConfig, path, isV7) {
     } catch (e) {
       e.message = e.message.replace('unknown', path);
 
-      // Match the line+col
-      const lineColRegex = /\((\d+):(\d+)\)/;
+      if (!isV7) {
+        const codeFrame = await import('babel-code-frame').then(x => x.default);
 
-      const match = e.message.match(lineColRegex);
-      if (match && match[1] && match[2]) {
-        const lineNumber = +match[1];
-        const colNumber = +match[2];
+        // Match the line+col
+        const lineColRegex = /\((\d+):(\d+)\)/;
 
-        const niceMessage =
-          e.message + '\n\n' + codeFrame(code, lineNumber, colNumber);
+        const match = e.message.match(lineColRegex);
+        if (match && match[1] && match[2]) {
+          const lineNumber = +match[1];
+          const colNumber = +match[2];
 
-        e.message = niceMessage;
+          const niceMessage =
+            e.message + '\n\n' + codeFrame(code, lineNumber, colNumber);
+
+          e.message = niceMessage;
+        }
       }
 
       throw e;
@@ -434,9 +488,16 @@ try {
 
   self.importScripts(
     process.env.NODE_ENV === 'development'
-      ? `${process.env.CODESANDBOX_HOST || ''}/static/js/babel.7.8.1.js`
-      : `${process.env.CODESANDBOX_HOST || ''}/static/js/babel.7.8.1.min.js`
+      ? `${
+          process.env.CODESANDBOX_HOST || ''
+        }/static/js/babel.${BABEL7_VERSION}.js`
+      : `${
+          process.env.CODESANDBOX_HOST || ''
+        }/static/js/babel.${BABEL7_VERSION}.min.js`
   );
+
+  remapBabelHack();
+  registerCodeSandboxPlugins();
 } catch (e) {
   console.error(e);
 }
@@ -464,19 +525,40 @@ let loadedTranspilerURL = null;
 let loadedEnvURL = null;
 
 function registerCodeSandboxPlugins() {
-  Babel.registerPlugin('dynamic-import-node', dynamicImportPlugin);
-  Babel.registerPlugin('babel-plugin-detective', detective);
-  Babel.registerPlugin('dynamic-css-modules', dynamicCSSModules);
-  Babel.registerPlugin(
-    'babel-plugin-transform-prevent-infinite-loops',
-    infiniteLoops
-  );
+  if (!Babel.availablePlugins['babel-plugin-detective']) {
+    Babel.registerPlugin('babel-plugin-detective', detective);
+  }
+  if (!Babel.availablePlugins['dynamic-css-modules']) {
+    Babel.registerPlugin('dynamic-css-modules', dynamicCSSModules);
+  }
+  if (!Babel.availablePlugins['babel-plugin-csb-rename-import']) {
+    Babel.registerPlugin('babel-plugin-csb-rename-import', renameImport);
+  }
+  if (
+    !Babel.availablePlugins['babel-plugin-transform-prevent-infinite-loops']
+  ) {
+    Babel.registerPlugin(
+      'babel-plugin-transform-prevent-infinite-loops',
+      infiniteLoops
+    );
+  }
+
+  // Between Babel 7.8 and Babel 7.12 the internal name of some plugins has changed. We need to
+  // remap the plugin to make existing sandboxes that rely on Babel v7 work.
+  if (
+    !Babel.availablePlugins['syntax-dynamic-import'] &&
+    Babel.availablePlugins['proposal-dynamic-import']
+  ) {
+    Babel.registerPlugin(
+      'syntax-dynamic-import',
+      Babel.availablePlugins['proposal-dynamic-import']
+    );
+  }
 }
 
 function loadCustomTranspiler(babelUrl, babelEnvUrl) {
   if (babelUrl && babelUrl !== loadedTranspilerURL) {
     self.importScripts(babelUrl);
-    registerCodeSandboxPlugins();
     loadedTranspilerURL = babelUrl;
   }
 
@@ -484,9 +566,10 @@ function loadCustomTranspiler(babelUrl, babelEnvUrl) {
     self.importScripts(babelEnvUrl);
     loadedEnvURL = babelEnvUrl;
   }
+  remapBabelHack();
+  registerCodeSandboxPlugins();
 }
-
-registerCodeSandboxPlugins();
+installErrorMock();
 
 self.addEventListener('message', async event => {
   if (!event.data.codesandbox) {
@@ -520,7 +603,7 @@ self.addEventListener('message', async event => {
     hasMacros,
   } = event.data;
 
-  if (type !== 'compile') {
+  if (type !== 'compile' && type !== 'warmup') {
     return;
   }
   try {
@@ -549,8 +632,6 @@ self.addEventListener('message', async event => {
     const codeSandboxPlugins = [];
 
     if (!disableCodeSandboxPlugins) {
-      codeSandboxPlugins.push('dynamic-import-node');
-
       if (loaderOptions.dynamicCSSModules) {
         codeSandboxPlugins.push('dynamic-css-modules');
       }
@@ -579,16 +660,19 @@ self.addEventListener('message', async event => {
 
     if (!disableCodeSandboxPlugins) {
       if (
-        flattenedPresets.indexOf('env') > -1 &&
         Object.keys(Babel.availablePresets).indexOf('env') === -1 &&
         version !== 7
       ) {
         Babel.registerPreset('env', Babel.availablePresets.latest);
       }
 
-      if (version === 7) {
+      // A plugin reaches into the internal of the preset and the pre-bundled preset-env does not have this function
+      // Hence, for this particular case, we dynamically import the real @babel/preset-env
+      if (version === 7 && flattenedPresets.includes('@vue/app')) {
         // Hardcode, since we want to override env
-        Babel.availablePresets.env = envPreset;
+        Babel.availablePresets.env = await import(
+          /* webpackChunkName: 'babel-preset-env' */ '@babel/preset-env'
+        );
       }
 
       if (
@@ -624,7 +708,7 @@ self.addEventListener('message', async event => {
           await waitForFs();
         }
 
-        Babel.registerPlugin('babel-plugin-macros', macrosPlugin);
+        Babel.registerPlugin('babel-plugin-macros', patchedMacrosPlugin);
       }
 
       if (
@@ -732,6 +816,11 @@ self.addEventListener('message', async event => {
         })
     );
 
+    if (type === 'warmup') {
+      Babel.transform(code, normalizeV7Config(customConfig));
+      return;
+    }
+
     await compile(
       code,
       version === 7 ? normalizeV7Config(customConfig) : customConfig,
@@ -739,6 +828,10 @@ self.addEventListener('message', async event => {
       version === 7
     );
   } catch (e) {
+    if (type === 'warmup') {
+      return;
+    }
+
     console.error(e);
     self.postMessage({
       type: 'error',

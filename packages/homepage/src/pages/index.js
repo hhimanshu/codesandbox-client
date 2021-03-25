@@ -1,16 +1,19 @@
+/* eslint-disable jsx-a11y/media-has-caption */
 import React from 'react';
 
 import TitleAndMetaTags from '../components/TitleAndMetaTags';
+
 import Layout, { WRAPPER_STYLING } from '../components/layout';
+
 import Hero from '../screens/home/hero';
-import Prototype from '../screens/home/prototype';
-import Started from '../screens/home/started';
+import DevExperiencOne from '../screens/home/devExperiencOne';
+import DevExperience from '../screens/home/devExperience';
 import LoadInView from '../components/LoadInView';
-import Experiment from '../screens/home/experiment';
+import Quotes from '../screens/home/quotes';
 import Teams from '../screens/home/teams';
-import Share from '../screens/home/share';
-import Join from '../screens/home/join';
 import Explore from '../screens/home/explore';
+import Video from '../screens/home/video';
+import Workspaces from '../screens/home/workspaces';
 
 // eslint-disable-next-line
 console.log(
@@ -20,31 +23,44 @@ console.log(
 const Homepage = () => (
   <Layout noWrapperStyling>
     <TitleAndMetaTags />
+
     <section
       css={`
         margin-bottom: 8rem;
+        max-width: 100vw;
+
+        ${props => props.theme.breakpoints.md} {
+          overflow: visible;
+        }
       `}
     >
       <Hero />
+      <Video />
     </section>
 
     <div style={WRAPPER_STYLING}>
       <LoadInView>
-        <Prototype />
+        <Teams />
       </LoadInView>
       <LoadInView>
-        <Started />
+        <Workspaces />
+      </LoadInView>
+      <LoadInView>
+        <DevExperiencOne />
+      </LoadInView>
+      <LoadInView>
+        <DevExperience />
+      </LoadInView>
+      <LoadInView>
+        <Quotes />
       </LoadInView>
     </div>
     <LoadInView>
       <Explore />
     </LoadInView>
-    <div style={WRAPPER_STYLING}>
+    {/* <div style={WRAPPER_STYLING}>
       <LoadInView>
         <Experiment />
-      </LoadInView>
-      <LoadInView>
-        <Teams />
       </LoadInView>
       <LoadInView>
         <Share />
@@ -52,7 +68,7 @@ const Homepage = () => (
       <LoadInView>
         <Join />
       </LoadInView>
-    </div>
+    </div> */}
   </Layout>
 );
 

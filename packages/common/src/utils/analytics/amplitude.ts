@@ -58,6 +58,18 @@ export const identify = async (key: string, value: any) => {
   }
 };
 
+export const identifyOnce = async (key: string, value: any) => {
+  const amplitude = await getAmplitude();
+  if (amplitude) {
+    const identity = new amplitude.Identify();
+    identity.setOnce(key, value);
+    amplitude.identify(identity);
+    debug('[Amplitude] Identifying', key, value);
+  } else {
+    debug('[Amplitude] NOT identifying because Amplitude is not loaded');
+  }
+};
+
 export const setUserId = async (userId: string) => {
   const amplitude = await getAmplitude();
   if (amplitude) {
@@ -105,5 +117,13 @@ export const track = async (eventName: string, data: any) => {
       '[Amplitude] NOT tracking because Amplitude is not loaded',
       eventName
     );
+  }
+};
+
+export const setGroup = async (group: string, value: string | string[]) => {
+  const amplitude = await getAmplitude();
+  if (amplitude) {
+    debug('[Amplitude] Grouping', group, value);
+    amplitude.setGroup(group, value);
   }
 };

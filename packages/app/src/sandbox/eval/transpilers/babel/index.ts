@@ -1,22 +1,22 @@
+/* eslint-enable import/default */
+import { isBabel7 } from '@codesandbox/common/lib/utils/is-babel-7';
+import isESModule from 'sandbox/eval/utils/is-es-module';
 /* eslint-disable import/default */
 // @ts-ignore
 import BabelWorker from 'worker-loader?publicPath=/&name=babel-transpiler.[hash:8].worker.js!./worker/index';
-/* eslint-enable import/default */
-import { isBabel7 } from '@codesandbox/common/lib/utils/is-babel-7';
 
-import isESModule from 'sandbox/eval/utils/is-es-module';
-import { measure, endMeasure } from '../../../utils/metrics';
-import regexGetRequireStatements from './worker/simple-get-require-statements';
-import getBabelConfig from './babel-parser';
+import delay from '@codesandbox/common/lib/utils/delay';
+import { endMeasure, measure } from '@codesandbox/common/lib/utils/metrics';
+import { Program } from 'meriyah/dist/estree';
+import { LoaderContext, Manager } from 'sandpack-core';
 import WorkerTranspiler from '../worker-transpiler';
-import { LoaderContext } from '../../transpiled-module';
-import Manager from '../../manager';
-
-import delay from '../../../utils/delay';
-import { shouldTranspile } from './check';
+import getBabelConfig from './babel-parser';
 import { convertEsModule } from './convert-esmodule';
+import regexGetRequireStatements from './worker/simple-get-require-statements';
+import { getSyntaxInfoFromAst, getSyntaxInfoFromCode } from './syntax-info';
 
 const global = window as any;
+const WORKER_COUNT = process.env.SANDPACK ? 1 : 3;
 
 // Right now this is in a worker, but when we're going to allow custom plugins
 // we need to move this out of the worker again, because the config needs
@@ -25,7 +25,10 @@ class BabelTranspiler extends WorkerTranspiler {
   worker: Worker;
 
   constructor() {
-    super('babel-loader', BabelWorker, 3, { hasFS: true, preload: true });
+    super('babel-loader', BabelWorker, WORKER_COUNT, {
+      hasFS: true,
+      preload: true,
+    });
   }
 
   startupWorkersInitialized = false;
@@ -51,11 +54,31 @@ class BabelTranspiler extends WorkerTranspiler {
       const { path } = loaderContext;
       let newCode = code;
 
-      if (isESModule(newCode) && path.indexOf('/node_modules') > -1) {
+      const isNodeModule = path.startsWith('/node_modules');
+
+      /**
+       * We should never transpile babel-standalone, because it relies on code that runs
+       * in non-strict mode. Transpiling this code would add a "use strict;" piece, which
+       * would then break the code (because it expects `this` to be global). No transpiler
+       * can fix this, and because of this we need to just specifically ignore this file.
+       */
+      const shouldIgnore = path === '/node_modules/babel-standalone/babel.js';
+
+      if (shouldIgnore) {
+        resolve({ transpiledCode: code });
+        return;
+      }
+
+      let convertedToEsmodule = false;
+      let ast: Program | undefined;
+      if (isESModule(newCode) && isNodeModule) {
         try {
           measure(`esconvert-${path}`);
-          newCode = convertEsModule(newCode);
+          const esModuleInfo = convertEsModule(newCode);
+          newCode = esModuleInfo.code;
           endMeasure(`esconvert-${path}`, { silent: true });
+          ast = esModuleInfo.ast;
+          convertedToEsmodule = true;
         } catch (e) {
           console.warn(
             `Error when converting '${path}' esmodule to commonjs: ${e.message}`
@@ -63,15 +86,18 @@ class BabelTranspiler extends WorkerTranspiler {
         }
       }
 
+      const syntaxInfo = ast
+        ? getSyntaxInfoFromAst(ast)
+        : getSyntaxInfoFromCode(newCode, path);
       try {
         // When we find a node_module that already is commonjs we will just get the
         // dependencies from the file and return the same code. We get the dependencies
         // with a regex since commonjs modules just have `require` and regex is MUCH
         // faster than generating an AST from the code.
         if (
-          (loaderContext.options.simpleRequire ||
-            path.startsWith('/node_modules')) &&
-          !shouldTranspile(newCode, path)
+          (loaderContext.options.simpleRequire || isNodeModule) &&
+          !syntaxInfo.jsx &&
+          !(!convertedToEsmodule && syntaxInfo.esm)
         ) {
           regexGetRequireStatements(newCode).forEach(dependency => {
             if (dependency.isGlob) {
@@ -93,9 +119,7 @@ class BabelTranspiler extends WorkerTranspiler {
       }
 
       const configs = loaderContext.options.configurations;
-
       const foundConfig = configs.babel && configs.babel.parsed;
-
       const loaderOptions = loaderContext.options || {};
 
       const dependencies =
@@ -114,7 +138,7 @@ class BabelTranspiler extends WorkerTranspiler {
         loaderContext.options.isV7 || isBabel7(dependencies, devDependencies);
 
       const hasMacros = Object.keys(dependencies).some(
-        d => d.indexOf('macro') > -1
+        d => d.indexOf('macro') > -1 || d.indexOf('codegen') > -1
       );
 
       const babelConfig = getBabelConfig(
@@ -154,6 +178,7 @@ class BabelTranspiler extends WorkerTranspiler {
   }
 
   async getTranspilerContext(manager: Manager): Promise<any> {
+    // eslint-disable-next-line no-async-promise-executor
     return new Promise(async resolve => {
       const baseConfig = await super.getTranspilerContext(manager);
 
@@ -171,7 +196,7 @@ class BabelTranspiler extends WorkerTranspiler {
         // @ts-ignore
         {},
         (err, data) => {
-          const { version, availablePlugins, availablePresets } = data;
+          const { version, availablePlugins, availablePresets } = data as any;
 
           resolve({
             ...baseConfig,

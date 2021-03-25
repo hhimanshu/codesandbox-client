@@ -1,8 +1,10 @@
 import css from '@styled-system/css';
 import VERSION from '@codesandbox/common/lib/version';
 import { CurrentUser } from '@codesandbox/common/lib/types';
-import { useOvermind } from 'app/overmind';
+import { ESC } from '@codesandbox/common/lib/utils/keycodes';
+import { useAppState, useActions } from 'app/overmind';
 import pushToAirtable from 'app/overmind/utils/pushToAirtable';
+import pushToFront from 'app/overmind/utils/pushToFront';
 import {
   Element,
   Input,
@@ -16,6 +18,7 @@ import React, {
   FormEvent,
   FunctionComponent,
   useState,
+  useEffect,
 } from 'react';
 import { browser } from './getBrowser';
 import { Alert } from '../Common/Alert';
@@ -25,14 +28,26 @@ type Props = {
   user?: CurrentUser;
 };
 
-const Feedback: FunctionComponent<Props> = ({ id, user }) => {
-  const {
-    actions: { notificationAdded, modalClosed },
-  } = useOvermind();
+export const Feedback: FunctionComponent<Props> = ({ id, user }) => {
+  const { notificationAdded, modalClosed } = useActions();
+  const { currentModalMessage } = useAppState();
   const [email, setEmail] = useState((user || {}).email);
   const [emoji, setEmoji] = useState(null);
-  const [feedback, setFeedback] = useState('');
+  const [feedback, setFeedback] = useState(currentModalMessage || '');
   const [loading, setLoading] = useState(false);
+
+  const listenForEsc = e => {
+    if (e.keyCode === ESC) {
+      modalClosed();
+    }
+  };
+
+  useEffect(() => {
+    window.addEventListener('keydown', listenForEsc);
+
+    return () => window.removeEventListener('keydown', listenForEsc);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const onChange = (e: ChangeEvent<HTMLInputElement>) => {
     const noop = () => undefined;
@@ -44,12 +59,9 @@ const Feedback: FunctionComponent<Props> = ({ id, user }) => {
     (settersByInputName[e.target.name] || noop)(e.target.value);
   };
 
-  const onSubmit = (evt: FormEvent<HTMLFormElement>) => {
+  const onSubmit = async (evt: FormEvent<HTMLFormElement>) => {
     evt.preventDefault();
-
-    setLoading(true);
-
-    pushToAirtable({
+    const data = {
       sandboxId: id || '',
       feedback,
       emoji,
@@ -57,26 +69,29 @@ const Feedback: FunctionComponent<Props> = ({ id, user }) => {
       email,
       version: VERSION,
       browser: browser(),
-    })
-      .then(() => {
-        setEmoji(null);
-        setFeedback('');
-        setLoading(false);
+    };
 
-        modalClosed();
-        notificationAdded({
-          notificationType: 'success',
-          title: 'Thanks for your feedback!',
-        });
-      })
-      .catch(({ message }) => {
-        notificationAdded({
-          notificationType: 'error',
-          title: `Something went wrong while sending feedback: ${message}`,
-        });
+    setLoading(true);
+    try {
+      await pushToAirtable(data);
+      await pushToFront(data);
+      setEmoji(null);
+      setFeedback('');
+      setLoading(false);
 
-        setLoading(false);
+      modalClosed();
+      notificationAdded({
+        notificationType: 'success',
+        title: 'Thanks for your feedback!',
       });
+    } catch (e) {
+      notificationAdded({
+        notificationType: 'error',
+        title: `Something went wrong while sending feedback`,
+      });
+
+      setLoading(false);
+    }
   };
 
   const setHappy = () => setEmoji('happy');
@@ -147,5 +162,3 @@ const Feedback: FunctionComponent<Props> = ({ id, user }) => {
     </Alert>
   );
 };
-
-export default Feedback;

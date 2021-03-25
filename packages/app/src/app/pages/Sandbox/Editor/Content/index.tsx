@@ -1,25 +1,22 @@
-import css from '@styled-system/css';
-
-import Tooltip from '@codesandbox/common/lib/components/Tooltip';
 import getTemplateDefinition from '@codesandbox/common/lib/templates';
 import { BACKTICK } from '@codesandbox/common/lib/utils/keycodes';
-import { Icons } from 'app/components/CodeEditor/elements';
 import { VSCode as CodeEditor } from 'app/components/CodeEditor/VSCode';
 import { DevTools } from 'app/components/Preview/DevTools';
-import { useOvermind } from 'app/overmind';
-import { useKey } from 'react-use';
+import { useActions, useReaction, useEffects, useAppState } from 'app/overmind';
+import useKey from 'react-use/lib/useKey';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import QuestionIcon from 'react-icons/lib/go/question';
 import SplitPane from 'react-split-pane';
 import { ThemeProvider } from 'styled-components';
 
-import { LiveUser } from '@codesandbox/common/lib/types';
-import { Stack } from '@codesandbox/components';
 import preventGestureScroll, { removeListener } from './prevent-gesture-scroll';
 import { Preview } from './Preview';
+import { EditorToast } from './EditorToast';
 
 export const MainWorkspace: React.FC<{ theme: any }> = ({ theme }) => {
-  const { state, actions, effects, reaction } = useOvermind();
+  const state = useAppState();
+  const actions = useActions();
+  const effects = useEffects();
+  const reaction = useReaction();
   const editorEl = useRef(null);
   const contentEl = useRef(null);
   const [showConsoleDevtool, setShowConsoleDevtool] = useState(false);
@@ -87,23 +84,11 @@ export const MainWorkspace: React.FC<{ theme: any }> = ({ theme }) => {
     []
   );
 
-  const { currentModule } = state.editor;
   const sandbox = state.editor.currentSandbox;
   const { preferences } = state;
   const windowVisible = state.editor.previewWindowVisible;
   const template = sandbox && getTemplateDefinition(sandbox.template);
   const currentPosition = state.editor.currentDevToolsPosition;
-  const modulePath = currentModule.path;
-  const config = template && template.configurationFiles[modulePath];
-
-  const followingUserId = state.live.followingUserId;
-  let followingUser: LiveUser | undefined;
-
-  if (followingUserId && state.live.roomInfo && state.live.isLive) {
-    followingUser = state.live.roomInfo.users.find(
-      u => u.id === followingUserId
-    );
-  }
 
   const browserConfig = {
     id: 'codesandbox.browser',
@@ -147,7 +132,7 @@ export const MainWorkspace: React.FC<{ theme: any }> = ({ theme }) => {
       >
         <SplitPane
           maxSize={-100}
-          onDragFinished={() => {
+          onDragFinished={props => {
             actions.editor.resizingStopped();
           }}
           onDragStarted={() => {
@@ -204,66 +189,7 @@ export const MainWorkspace: React.FC<{ theme: any }> = ({ theme }) => {
                 bottom: 0,
               }}
             >
-              <Stack
-                css={css({
-                  position: 'absolute',
-                  top: 34,
-                  zIndex: 45,
-                  right: 0,
-                })}
-                gap={1}
-                direction="vertical"
-                align="flex-end"
-              >
-                {followingUser && (
-                  <div
-                    css={{
-                      transition: '0.3s ease opacity',
-                      background: `rgb(${followingUser.color.join(',')})`,
-                      padding: '2px 8px',
-                      fontSize: '12px',
-                      float: 'right',
-                      width: 'max-content',
-                      borderBottomLeftRadius: 2,
-                      color:
-                        (followingUser.color[0] * 299 +
-                          followingUser.color[1] * 587 +
-                          followingUser.color[2] * 114) /
-                          1000 >
-                        128
-                          ? 'rgba(0, 0, 0, 0.8)'
-                          : 'white',
-
-                      ':hover': {
-                        opacity: 0.5,
-                      },
-                    }}
-                  >
-                    Following {followingUser.username}
-                  </div>
-                )}
-
-                {config ? (
-                  <Icons>
-                    {config.partialSupportDisclaimer ? (
-                      <Tooltip
-                        placement="bottom"
-                        content={config.partialSupportDisclaimer}
-                        style={{
-                          display: 'flex',
-                          'align-items': 'center',
-                        }}
-                      >
-                        Partially Supported Config{' '}
-                        <QuestionIcon style={{ marginLeft: '.5rem' }} />
-                      </Tooltip>
-                    ) : (
-                      <div>Supported Configuration</div>
-                    )}
-                  </Icons>
-                ) : null}
-              </Stack>
-
+              <EditorToast />
               {state.editor.isLoading ? null : <CodeEditor />}
             </div>
           </div>
@@ -281,6 +207,9 @@ export const MainWorkspace: React.FC<{ theme: any }> = ({ theme }) => {
                 // show console devtool if showConsoleDevtool is enabled and if it's in the current view(v)
                 const devToolsOpen =
                   showConsoleDevtool && consoleDevtoolIndex === i;
+                const disableLogging =
+                  state.editor.parsedConfigurations?.sandbox?.parsed
+                    ?.disableLogging;
 
                 return (
                   <DevTools
@@ -300,6 +229,7 @@ export const MainWorkspace: React.FC<{ theme: any }> = ({ theme }) => {
                     }}
                     sandboxId={sandbox.id}
                     template={sandbox.template}
+                    disableLogging={disableLogging}
                     shouldExpandDevTools={state.preferences.showDevtools}
                     zenMode={preferences.settings.zenMode}
                     setDevToolsOpen={open => {
@@ -337,5 +267,3 @@ export const MainWorkspace: React.FC<{ theme: any }> = ({ theme }) => {
     </ThemeProvider>
   );
 };
-
-export default MainWorkspace;
